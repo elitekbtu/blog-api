@@ -1,13 +1,19 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
 
+# Pyhton modules
 import os
 import sys
+
+# Project modules
+from settings.conf import BLOG_ENV_ID, ENV_ID_POSSIBLE_OPTIONS
 
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings.base")
+    assert BLOG_ENV_ID in ENV_ID_POSSIBLE_OPTIONS, (
+        f"Set correct BLOG_ENV_ID env var. Possible options: {ENV_ID_POSSIBLE_OPTIONS}"
+    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"settings.env.{BLOG_ENV_ID}")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
