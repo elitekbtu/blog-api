@@ -2,7 +2,6 @@
 import os
 from settings.conf import *  # noqa: F403
 
-
 """
 Path configurations
 """
@@ -52,6 +51,11 @@ LOGGING = {
             "style": "{",
         },
     },
+    "filters": {
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
@@ -59,7 +63,7 @@ LOGGING = {
             "formatter": "simple",
         },
         "file": {
-            "class": "logging.handler.RotatingFileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "level": "WARNING",
             "filename": "logs/app.log",
             "maxBytes": 5 * 1024 * 1024,  # 10 MB
@@ -68,7 +72,7 @@ LOGGING = {
             "encoding": "utf-8",
         },
         "debug_only": {
-            "class": "logging.handler.RotatingFileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "level": "DEBUG",
             "filename": "logs/debug_requests.log",
             "maxBytes": 5 * 1024 * 1024,  # 10 MB
@@ -93,11 +97,6 @@ LOGGING = {
             "handlers": ["file", "debug_only"],
             "level": "WARNING",
             "propagate": False,
-        },
-    },
-    "filters": {
-        "require_debug_true": {
-            "()": "django.utils.log.RequireDebugTrue",
         },
     },
 }
