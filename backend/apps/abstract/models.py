@@ -34,18 +34,17 @@ class AbstractTimeStamptModel(Model):
     class Meta:
         abstract = True
 
-        def delete(self, *args: tuple[Any, ...], **kwargs: dict[Any, Any]) -> None:
-            """
-            Soft delete the object
-            by setting the deleted_at
-            field to the current time.
+    def delete(self, *args: tuple[Any, ...], **kwargs: dict[Any, Any]) -> None:
+        """
+        Soft delete the object
+        by setting the deleted_at
+        field to the current time.
+            Args:
+                *args: tuple of positional arguments
+                **kwargs: dict of keyword arguments
+            Returns:
+                None
+        """
 
-                Args:
-                    *args: tuple of positional arguments
-                    **kwargs: dict of keyword arguments
-                Returns:
-                    None
-            """
-
-            self.deleted_at = django_timezone.now()
-            self.save(update_fields=["deleted_at"])
+        self.deleted_at = django_timezone.now()
+        self.save(update_fields=["deleted_at"])

@@ -16,7 +16,7 @@ from django.contrib.auth.models import (
 )
 
 # Project modules
-from backend.apps.abstract.models import AbstractTimeStamptModel
+from apps.abstract.models import AbstractTimeStamptModel
 
 
 class CustomUserManager(BaseUserManager):

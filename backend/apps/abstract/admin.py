@@ -1,3 +1,4 @@
-from django.contrib import admin
+# Django modules
+from django.contrib import admin  # noqa: F401
 
-# Register your models here.
+# Not used for admin panel
