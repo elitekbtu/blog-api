@@ -33,7 +33,77 @@ PROJECT_APPS = [
 
 INSTALLED_APPS = DJANGO_AND_THIRD_PARTY_APPS + PROJECT_APPS
 
-"""'
+
+"""
+Logging
+"""
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {
+            "format": "[{levelname}] {message}",
+            "style": "{",
+        },
+        "verbose": {
+            "format": "[{asctime}] {levelname} "
+            "{name} {module}.{funcName}: {lineno} - {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "formatter": "simple",
+        },
+        "file": {
+            "class": "logging.handler.RotatingFileHandler",
+            "level": "WARNING",
+            "filename": "logs/app.log",
+            "maxBytes": 5 * 1024 * 1024,  # 10 MB
+            "backupCount": 3,
+            "formatter": "verbose",
+            "encoding": "utf-8",
+        },
+        "debug_only": {
+            "class": "logging.handler.RotatingFileHandler",
+            "level": "DEBUG",
+            "filename": "logs/debug_requests.log",
+            "maxBytes": 5 * 1024 * 1024,  # 10 MB
+            "backupCount": 3,
+            "formatter": "verbose",
+            "filters": ["require_debug_true"],
+            "encoding": "utf-8",
+        },
+    },
+    "loggers": {
+        "apps.users": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "apps.blog": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["file", "debug_only"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+    "filters": {
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        },
+    },
+}
+
+
+"""
 Middleware | Templates | Validators
 """
 
@@ -47,20 +117,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
-LOGGING = {
-    "formatters": {
-        "simple": {
-            "format": "[{levelname}] {message}",
-            "style": "{",
-        },
-        "verbose": {
-            "format": "[{asctime}] {levelname} "
-            "{name} {module}.{funcName}: {lineno} - {message}",
-            "style": "{",
-        },
-    },
-}
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
