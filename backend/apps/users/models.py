@@ -1,5 +1,7 @@
+# Python modules
 from typing import Any
 
+# Django modules
 from django.db.models import (
     CharField,
     EmailField,
@@ -12,12 +14,21 @@ from django.contrib.auth.models import (
     PermissionsMixin,
     BaseUserManager,
 )
+
+# Project modules
 from backend.apps.abstract.models import AbstractTimeStamptModel
 
 
 class CustomUserManager(BaseUserManager):
     """
     Custom UserManager for User Model
+
+    Methods:
+        - create_user: Create and save a User with the given email,
+        first name, last name, and password.
+        - create_superuser: Create and save a Superuser with the given email,
+        first name, last name, and password.
+
     """
 
     def create_user(
@@ -30,21 +41,18 @@ class CustomUserManager(BaseUserManager):
         **kwargs: dict[Any, Any],
     ) -> "CustomUser":
         """
-        create_user
+        Create and save a User with the given email,
+        first name, last name, and password.
 
-        :param self: Описание
-        :param email: Описание
-        :type email: str
-        :param first_name: Описание
-        :type first_name: str
-        :param last_name: Описание
-        :type last_name: str
-        :param password: Описание
-        :type password: str
-        :param args: Описание
-        :type args: tuple[Any, ...]
-        :param kwargs: Описание
-        :type kwargs: dict[Any, Any]
+        Args:
+            email: Email of the user
+            first_name: First name of the user
+            last_name: Last name of the user
+            password: Password of the user
+            *args: tuple of positional arguments
+            **kwargs: dict of keyword arguments
+        Returns:
+            CustomUser instance
         """
 
         if not email:
@@ -72,21 +80,18 @@ class CustomUserManager(BaseUserManager):
         **kwargs: dict[Any, Any],
     ) -> "CustomUser":
         """
-        Docstring для create_superuser
+        Create and save a Superuser with the given email,
+        first name, last name, and password.
 
-        :param self: Описание
-        :param email: Описание
-        :type email: EmailField
-        :param first_name: Описание
-        :type first_name: str
-        :param last_name: Описание
-        :type last_name: str
-        :param password: Описание
-        :type password: str
-        :param args: Описание
-        :type args: tuple[Any, ...]
-        :param kwargs: Описание
-        :type kwargs: dict[Any, Any]
+        Args:
+            email: Email of the superuser
+            first_name: First name of the superuser
+            last_name: Last name of the superuser
+            password: Password of the superuser
+            *args: tuple of positional arguments
+            **kwargs: dict of keyword arguments
+        Returns:
+            CustomUser instance
         """
 
         if not email:
@@ -124,6 +129,32 @@ class CustomUser(
     PermissionsMixin,
     AbstractTimeStamptModel,
 ):
+    """
+    Custom User Model that
+    extends AbstractBaseUser, PermissionsMixin,
+    and AbstractTimeStamptModel
+
+    Fields:
+        - email: EmailField
+
+        - first_name: CharField
+        - last_name: CharField
+
+        - is_active: BooleanField
+        - is_staff: BooleanField
+
+        - date_joined: DateTimeField
+        - avatar: ImageField
+
+        - created_at: DateTimeField
+        - updated_at: DateTimeField
+        - deleted_at: DateTimeField
+
+
+    Methods:
+        - __str__: Return a string representation of the user
+    """
+
     email = EmailField(
         unique=True,
     )
