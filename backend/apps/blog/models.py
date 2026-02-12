@@ -5,9 +5,9 @@ from django.db.models import (
     SlugField,
     TextChoices,
     ForeignKey,
+    ManyToManyField,
     CASCADE,
     SET_NULL,
-    ManyToManyField,
 )
 
 # Project modules
