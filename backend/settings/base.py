@@ -23,6 +23,7 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
 ]
 
 PROJECT_APPS = [
@@ -102,6 +103,17 @@ LOGGING = {
     },
 }
 
+"""
+Django Rest Framework
+"""
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+}
+
 
 """
 Middleware | Templates | Validators
@@ -115,6 +127,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "rest_framework.middleware.AuthenticationMiddleware",
+    "rest_framework.middleware.AuthorizationMiddleware",
 ]
 
 TEMPLATES = [
