@@ -120,6 +120,7 @@ class CustomUserManager(BaseUserManager):
         return user
 
 
+# Constants
 FIRST_NAME_MAX_LENGTH = 50
 LAST_NAME_MAX_LENGTH = 50
 

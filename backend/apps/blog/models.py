@@ -32,8 +32,14 @@ class Category(AbstractTimeStamptModel):
         - posts: All posts in this category.
     """
 
-    name = CharField(max_length=CATEGORY_MAX_NAME_LENGTH, unique=True)
+    name = CharField(
+        max_length=CATEGORY_MAX_NAME_LENGTH,
+        unique=True,
+    )
     slug = SlugField(unique=True)
+
+    def __str__(self):
+        return self.name
 
 
 class Tag(AbstractTimeStamptModel):
@@ -48,8 +54,15 @@ class Tag(AbstractTimeStamptModel):
         - posts: All posts associated with this tag.
     """
 
-    name = CharField(max_length=TAG_MAX_NAME_LENGTH, unique=True)
+    name = CharField(
+        max_length=TAG_MAX_NAME_LENGTH,
+        unique=True,
+    )
+
     slug = SlugField(unique=True)
+
+    def __str__(self):
+        return self.name
 
 
 class Post(AbstractTimeStamptModel):
@@ -70,11 +83,11 @@ class Post(AbstractTimeStamptModel):
     """
 
     class Status(TextChoices):
-        DRAFT = "draft", "Draft"
-        PUBLISHED = "published", "Published"
+        DRAFT = "draft"
+        PUBLISHED = "published"
 
     author = ForeignKey(
-        CustomUser,
+        to=CustomUser,
         on_delete=CASCADE,
         related_name="posts",
     )
@@ -84,7 +97,7 @@ class Post(AbstractTimeStamptModel):
     body = TextField()
 
     category = ForeignKey(
-        Category,
+        to=Category,
         on_delete=SET_NULL,
         null=True,
         blank=True,
@@ -92,7 +105,7 @@ class Post(AbstractTimeStamptModel):
     )
 
     tags = ManyToManyField(
-        Tag,
+        to=Tag,
         blank=True,
         related_name="posts",
     )
@@ -102,6 +115,9 @@ class Post(AbstractTimeStamptModel):
         choices=Status.choices,
         default=Status.DRAFT,
     )
+
+    def __str__(self):
+        return self.title
 
 
 class Comment(AbstractTimeStamptModel):
@@ -120,13 +136,13 @@ class Comment(AbstractTimeStamptModel):
     """
 
     post = ForeignKey(
-        Post,
+        to=Post,
         on_delete=CASCADE,
         related_name="comments",
     )
 
     author = ForeignKey(
-        CustomUser,
+        to=CustomUser,
         on_delete=CASCADE,
         related_name="comments",
     )
