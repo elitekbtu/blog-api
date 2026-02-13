@@ -1,5 +1,6 @@
 # Project modules
 import os
+from datetime import timedelta
 from settings.conf import *  # noqa: F403
 
 """
@@ -9,7 +10,7 @@ Path configurations
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT_URLCONF = "settings.urls"
 WSGI_APPLICATION = "settings.wsgi.application"
-ASGI_APPLICTION = "settings.asgi.application"
+ASGI_APPLICATION = "settings.asgi.application"
 AUTH_USER_MODEL = "users.CustomUser"
 
 """
@@ -24,6 +25,7 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework_simplejwt",
 ]
 
 PROJECT_APPS = [
@@ -104,6 +106,23 @@ LOGGING = {
 }
 
 """
+Simple JWT
+"""
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,  # noqa: F405
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+}
+
+"""
 Django Rest Framework
 """
 
@@ -127,8 +146,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "rest_framework.middleware.AuthenticationMiddleware",
-    "rest_framework.middleware.AuthorizationMiddleware",
 ]
 
 TEMPLATES = [

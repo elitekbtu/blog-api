@@ -1,6 +1,3 @@
-# Python modules
-from typing import Any
-
 # Django modules
 from django.db.models import (
     CharField,

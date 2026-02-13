@@ -45,7 +45,14 @@ class RegistrationSerializer(ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ["email", "password", "password_confirm", "tokens"]
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "password",
+            "password_confirm",
+            "tokens",
+        ]
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if attrs["password"] != attrs["password_confirm"]:
@@ -54,10 +61,7 @@ class RegistrationSerializer(ModelSerializer):
 
     def create(self, validated_data: dict[str, Any]) -> CustomUser:
         validated_data.pop("password_confirm")
-        user = CustomUser.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-        )
+        user = CustomUser.objects.create_user(**validated_data)
         return user
 
     def get_tokens(self, obj: CustomUser) -> dict[str, str]:
@@ -101,7 +105,6 @@ class LoginSerializer(Serializer):
         refresh = RefreshToken.for_user(user)
 
         return {
-            "email": user.email,
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         }
