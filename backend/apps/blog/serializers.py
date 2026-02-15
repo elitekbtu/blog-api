@@ -10,7 +10,7 @@ from rest_framework.serializers import (
 )
 
 # Project modules
-from apps.blog.models import Post, Category, Tag
+from apps.blog.models import Post, Category, Tag, Comment
 from apps.users.models import CustomUser
 
 
@@ -58,9 +58,9 @@ class TagSerializer(ModelSerializer):
         ]
 
 
-class PostGetSerializer(ModelSerializer):
+class PostListSerializer(ModelSerializer):
     """
-    Post GET serializer
+    Post GET List serializer
     """
 
     author: AuthorSerializer = AuthorSerializer(read_only=True)
@@ -68,7 +68,38 @@ class PostGetSerializer(ModelSerializer):
     tags: TagSerializer = TagSerializer(read_only=True, many=True)
 
     created_at: datetime = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
-    updated_at: datetime = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "author",
+            "title",
+            "slug",
+            "category",
+            "tags",
+            "status",
+            "created_at",
+        ]
+
+
+class PostDetailSerializer(ModelSerializer):
+    """
+    Post GET by ID serializer
+    """
+
+    author: AuthorSerializer = AuthorSerializer(read_only=True)
+    category: CategorySerializer = CategorySerializer(read_only=True)
+    tags: TagSerializer = TagSerializer(read_only=True, many=True)
+
+    created_at: datetime = DateTimeField(
+        read_only=True,
+        format="%H:%M %d-%m-%Y",
+    )
+    updated_at: datetime = DateTimeField(
+        read_only=True,
+        format="%H:%M %d-%m-%Y",
+    )
 
     class Meta:
         model = Post
@@ -88,12 +119,21 @@ class PostGetSerializer(ModelSerializer):
 
 class PostCreateUpdateSerializer(ModelSerializer):
     """
-    Post POST/PUT Serializer
+    Post POST and PUT, PATCH Serializer
     """
 
-    author: int = PrimaryKeyRelatedField(read_only=True)
-    slug: str = SlugField(read_only=True)
-    created_at: datetime = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
+    author = AuthorSerializer(read_only=True)
+    slug = SlugField(read_only=True)
+    category = PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    tags = PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(),
+        many=True,
+        required=False,
+    )
 
     class Meta:
         model = Post
@@ -106,5 +146,21 @@ class PostCreateUpdateSerializer(ModelSerializer):
             "category",
             "tags",
             "status",
+        ]
+
+
+class CommentSerializer(ModelSerializer):
+    author: AuthorSerializer = AuthorSerializer(read_only=True)
+
+    created_at = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
+    updated_at = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
+
+    class Meta:
+        model = Comment
+        fields = [
+            "id",
+            "author",
+            "body",
             "created_at",
+            "updated_at",
         ]
