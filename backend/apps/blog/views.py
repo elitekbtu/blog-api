@@ -19,6 +19,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 
 # Django modules
 from django.db.models import Q
+from django.core.cache import cache
 
 # Project modules
 from apps.blog.models import Post, Comment
@@ -30,6 +31,7 @@ from apps.blog.serializers import (
 )
 from apps.blog.permissions import IsAuthorOrReadOnly
 from apps.abstract.pagination import DefaultPagination
+from apps.abstract.ratelimit import ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +80,36 @@ class PostViewSet(ViewSet):
         )
         logger.info(f"Listing posts requested by {user_info}")
 
-        if not request.user.is_authenticated:
-            queryset = Post.objects.filter(status=Post.Status.PUBLISHED)
-        else:
+        if request.user.is_authenticated:
             queryset = Post.objects.filter(
                 Q(status=Post.Status.PUBLISHED) | Q(author=request.user)
             )
+            logger.debug(f"Posts queryset count: {queryset.count()} for {user_info}")
 
+            paginator = self.pagination_class()
+            page = paginator.paginate_queryset(queryset, request, view=self)
+
+            if page is not None:
+                serializer: PostListSerializer = PostListSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer: PostListSerializer = PostListSerializer(queryset, many=True)
+            return DRFResponse(
+                data=serializer.data,
+                status=HTTP_200_OK,
+            )
+
+        cache_key = "published_posts_list"
+        cached_data = cache.get(cache_key)
+
+        if cached_data is not None:
+            logger.info(f"Returning cached posts list for {user_info}")
+            return DRFResponse(
+                data=cached_data,
+                status=HTTP_200_OK,
+            )
+        logger.info(f"Cache miss - fetching posts from database for {user_info}")
+        queryset = Post.objects.filter(status=Post.Status.PUBLISHED)
         logger.debug(f"Posts queryset count: {queryset.count()} for {user_info}")
 
         paginator = self.pagination_class()
@@ -92,14 +117,24 @@ class PostViewSet(ViewSet):
 
         if page is not None:
             serializer: PostListSerializer = PostListSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            response_data = paginator.get_paginated_response(serializer.data).data
+            cache.set(cache_key, response_data, 60)
+            logger.info("Cached posts list for 60 seconds")
+            return DRFResponse(
+                data=response_data,
+                status=HTTP_200_OK,
+            )
 
         serializer: PostListSerializer = PostListSerializer(queryset, many=True)
+        response_data = serializer.data
+        cache.set(cache_key, response_data, 60)
+        logger.info("Cached posts list for 60 seconds")
         return DRFResponse(
-            data=serializer.data,
+            data=response_data,
             status=HTTP_200_OK,
         )
 
+    @ratelimit(key_func=lambda r: str(r.user.id) if r.user.is_authenticated else "anonymous", rate="20/m", method="POST")
     def create(
         self,
         request: DRFRequest,
@@ -123,6 +158,10 @@ class PostViewSet(ViewSet):
 
         if serializer.is_valid():
             post = serializer.save(author=request.user)
+
+            cache.delete("published_posts_list")
+            logger.info("Invalidated published posts cache after post creation")
+
             logger.info(
                 f"Post created successfully: post_id={post.id}, "
                 f"slug={post.slug}, author_id={request.user.id}"
@@ -200,6 +239,10 @@ class PostViewSet(ViewSet):
 
         if serializer.is_valid():
             serializer.save()
+
+            cache.delete("published_posts_list")
+            logger.info("Invalidated published posts cache after post update")
+
             logger.info(
                 f"Post updated successfully: post_id={post.id}, "
                 f"slug={slug}, user_id={request.user.id}"

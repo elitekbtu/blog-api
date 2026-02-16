@@ -13,6 +13,7 @@ from rest_framework.serializers import (
 # Project modules
 from apps.blog.models import Post, Category, Tag, Comment
 from apps.users.models import CustomUser
+from apps.blog.redis_client import publish_comment_event
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,7 @@ class CommentSerializer(ModelSerializer):
         logger.info("Creating comment via serializer")
         comment = super().create(validated_data)
         logger.debug(f"Comment created in serializer: comment_id={comment.id}")
+        publish_comment_event(comment)
         return comment
 
     def update(self, instance, validated_data):

@@ -16,6 +16,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 # Project modules
 from apps.users.auth.serializers import RegistrationSerializer, LoginSerializer
+from apps.abstract.ratelimit import ratelimit, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class AuthViewSet(ViewSet):
         url_path="token",
         url_name="token",
     )
+    @ratelimit(key_func=lambda r: get_client_ip(r), rate="10/m", method="POST")
     def login(
         self,
         request: DRFRequest,
@@ -66,6 +68,7 @@ class AuthViewSet(ViewSet):
         url_path="register",
         url_name="register",
     )
+    @ratelimit(key_func=lambda r: get_client_ip(r), rate="5/m", method="POST")
     def register(
         self,
         request: DRFRequest,
