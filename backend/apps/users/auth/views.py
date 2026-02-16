@@ -87,7 +87,9 @@ class AuthViewSet(ViewSet):
                 data=serializer.data,
                 status=HTTP_201_CREATED,
             )
-        logger.warning(f"Registration failed: email={email}, errors={serializer.errors}")
+        logger.warning(
+            f"Registration failed: email={email}, errors={serializer.errors}"
+        )
         return DRFResponse(
             data=serializer.errors,
             status=HTTP_400_BAD_REQUEST,

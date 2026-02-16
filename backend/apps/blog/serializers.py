@@ -86,7 +86,9 @@ class PostListSerializer(ModelSerializer):
         ]
 
     def to_representation(self, instance):
-        logger.debug(f"Serializing post list item: post_id={instance.id}, slug={instance.slug}")
+        logger.debug(
+            f"Serializing post list item: post_id={instance.id}, slug={instance.slug}"
+        )
         return super().to_representation(instance)
 
 
@@ -124,7 +126,9 @@ class PostDetailSerializer(ModelSerializer):
         ]
 
     def to_representation(self, instance):
-        logger.debug(f"Serializing post detail: post_id={instance.id}, slug={instance.slug}")
+        logger.debug(
+            f"Serializing post detail: post_id={instance.id}, slug={instance.slug}"
+        )
         return super().to_representation(instance)
 
 
@@ -164,13 +168,17 @@ class PostCreateUpdateSerializer(ModelSerializer):
         return super().validate(attrs)
 
     def create(self, validated_data):
-        logger.info(f"Creating post via serializer: title={validated_data.get('title')}")
+        logger.info(
+            f"Creating post via serializer: title={validated_data.get('title')}"
+        )
         post = super().create(validated_data)
         logger.debug(f"Post created in serializer: post_id={post.id}, slug={post.slug}")
         return post
 
     def update(self, instance, validated_data):
-        logger.info(f"Updating post via serializer: post_id={instance.id}, title={validated_data.get('title', instance.title)}")
+        logger.info(
+            f"Updating post via serializer: post_id={instance.id}, title={validated_data.get('title', instance.title)}"
+        )
         post = super().update(instance, validated_data)
         logger.debug(f"Post updated in serializer: post_id={post.id}")
         return post
@@ -193,7 +201,9 @@ class CommentSerializer(ModelSerializer):
         ]
 
     def validate(self, attrs):
-        logger.debug(f"Validating comment data: body_length={len(attrs.get('body', ''))}")
+        logger.debug(
+            f"Validating comment data: body_length={len(attrs.get('body', ''))}"
+        )
         return super().validate(attrs)
 
     def create(self, validated_data):
