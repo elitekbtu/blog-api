@@ -1,5 +1,6 @@
 # Python modules
 from typing import Any
+import logging
 
 # Third-party modules
 from rest_framework.viewsets import ViewSet
@@ -15,6 +16,8 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 # Project modules
 from apps.users.auth.serializers import RegistrationSerializer, LoginSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class AuthViewSet(ViewSet):
@@ -36,6 +39,8 @@ class AuthViewSet(ViewSet):
         *args: tuple[Any, ...],
         **kwargs: dict[str, Any],
     ) -> DRFResponse:
+        email = request.data.get("email", "N/A")
+        logger.info(f"Login attempt: email={email}")
 
         serializer = LoginSerializer(
             data=request.data,
@@ -43,11 +48,13 @@ class AuthViewSet(ViewSet):
         )
 
         if serializer.is_valid():
+            logger.info(f"Login successful: email={email}")
             return DRFResponse(
                 data=serializer.validated_data,
                 status=HTTP_200_OK,
             )
 
+        logger.warning(f"Login failed: email={email}, errors={serializer.errors}")
         return DRFResponse(
             data=serializer.errors,
             status=HTTP_400_BAD_REQUEST,
@@ -65,6 +72,8 @@ class AuthViewSet(ViewSet):
         *args: tuple[Any, ...],
         **kwargs: dict[str, Any],
     ) -> DRFResponse:
+        email = request.data.get("email", "N/A")
+        logger.info(f"Registration attempt: email={email}")
 
         serializer: RegistrationSerializer = RegistrationSerializer(
             data=request.data,
@@ -72,11 +81,13 @@ class AuthViewSet(ViewSet):
         )
 
         if serializer.is_valid():
-            serializer.save()
+            user = serializer.save()
+            logger.info(f"Registration successful: user_id={user.id}, email={email}")
             return DRFResponse(
                 data=serializer.data,
                 status=HTTP_201_CREATED,
             )
+        logger.warning(f"Registration failed: email={email}, errors={serializer.errors}")
         return DRFResponse(
             data=serializer.errors,
             status=HTTP_400_BAD_REQUEST,
@@ -94,18 +105,22 @@ class AuthViewSet(ViewSet):
         *args: tuple[Any, ...],
         **kwargs: dict[str, Any],
     ) -> DRFResponse:
+        logger.info("Token refresh attempt")
         serializer: TokenRefreshSerializer = TokenRefreshSerializer(
             data=request.data,
         )
         try:
             if serializer.is_valid():
+                logger.info("Token refresh successful")
                 return DRFResponse(
                     data=serializer.validated_data,
                     status=HTTP_200_OK,
                 )
         except TokenError as e:
+            logger.error(f"Token refresh failed: {str(e)}")
             raise InvalidToken(e.args[0])
 
+        logger.warning(f"Token refresh validation failed: {serializer.errors}")
         return DRFResponse(
             data=serializer.errors,
             status=HTTP_400_BAD_REQUEST,

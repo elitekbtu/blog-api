@@ -5,11 +5,11 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 
 # Project modules
-from apps.users.auth.views import AuthViewSet
+from apps.users.views import CustomUserViewSet
 
 router = DefaultRouter()
-router.register(r"auth", AuthViewSet, basename="auth")
+router.register(r"", CustomUserViewSet, basename="")
 
 urlpatterns = [
-    path("", include(router.urls)),
+    path("user/", include(router.urls)),
 ]

@@ -1,5 +1,6 @@
 # Python modules
 from datetime import datetime
+import logging
 
 # Third-party modules
 from rest_framework.serializers import (
@@ -12,6 +13,8 @@ from rest_framework.serializers import (
 # Project modules
 from apps.blog.models import Post, Category, Tag, Comment
 from apps.users.models import CustomUser
+
+logger = logging.getLogger(__name__)
 
 
 class AuthorSerializer(ModelSerializer):
@@ -82,6 +85,10 @@ class PostListSerializer(ModelSerializer):
             "created_at",
         ]
 
+    def to_representation(self, instance):
+        logger.debug(f"Serializing post list item: post_id={instance.id}, slug={instance.slug}")
+        return super().to_representation(instance)
+
 
 class PostDetailSerializer(ModelSerializer):
     """
@@ -116,6 +123,10 @@ class PostDetailSerializer(ModelSerializer):
             "updated_at",
         ]
 
+    def to_representation(self, instance):
+        logger.debug(f"Serializing post detail: post_id={instance.id}, slug={instance.slug}")
+        return super().to_representation(instance)
+
 
 class PostCreateUpdateSerializer(ModelSerializer):
     """
@@ -148,6 +159,22 @@ class PostCreateUpdateSerializer(ModelSerializer):
             "status",
         ]
 
+    def validate(self, attrs):
+        logger.debug(f"Validating post data: title={attrs.get('title', 'N/A')}")
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        logger.info(f"Creating post via serializer: title={validated_data.get('title')}")
+        post = super().create(validated_data)
+        logger.debug(f"Post created in serializer: post_id={post.id}, slug={post.slug}")
+        return post
+
+    def update(self, instance, validated_data):
+        logger.info(f"Updating post via serializer: post_id={instance.id}, title={validated_data.get('title', instance.title)}")
+        post = super().update(instance, validated_data)
+        logger.debug(f"Post updated in serializer: post_id={post.id}")
+        return post
+
 
 class CommentSerializer(ModelSerializer):
     author: AuthorSerializer = AuthorSerializer(read_only=True)
@@ -164,3 +191,23 @@ class CommentSerializer(ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def validate(self, attrs):
+        logger.debug(f"Validating comment data: body_length={len(attrs.get('body', ''))}")
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        logger.info("Creating comment via serializer")
+        comment = super().create(validated_data)
+        logger.debug(f"Comment created in serializer: comment_id={comment.id}")
+        return comment
+
+    def update(self, instance, validated_data):
+        logger.info(f"Updating comment via serializer: comment_id={instance.id}")
+        comment = super().update(instance, validated_data)
+        logger.debug(f"Comment updated in serializer: comment_id={comment.id}")
+        return comment
+
+    def to_representation(self, instance):
+        logger.debug(f"Serializing comment: comment_id={instance.id}")
+        return super().to_representation(instance)
