@@ -2,6 +2,7 @@
 import os
 from datetime import timedelta
 from settings.conf import *  # noqa: F403
+from django.utils.translation import gettext_lazy as _
 
 """
 Path configurations
@@ -27,6 +28,7 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "django_extensions",
+    'drf_spectacular',
 ]
 
 PROJECT_APPS = [
@@ -134,6 +136,36 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.CursorPagination",
     "PAGE_SIZE": 100,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+"""
+Documentation Settings
+"""
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Blog API',
+    'DESCRIPTION': 'Blog API system',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': True,
+    'TAGS': [
+        {
+            'name': 'Auth',
+            'description': 'Authentication, registration, profile, and user preference endpoints.',
+        },
+        {
+            'name': 'Posts',
+            'description': 'Post CRUD and post-scoped operations.',
+        },
+        {
+            'name': 'Comments',
+            'description': 'Comment listing, retrieval, and moderation endpoints.',
+        },
+        {
+            'name': 'Stats',
+            'description': 'List and feed-like endpoints that expose aggregate/paginated activity views.',
+        },
+    ],
 }
 
 """
@@ -143,7 +175,7 @@ Caching
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://redis:6379/1",
+        "LOCATION": "redis://localhost:6379/1",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
@@ -164,12 +196,13 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.language.LanguageMiddleware",
 ]
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -202,8 +235,19 @@ AUTH_PASSWORD_VALIDATORS = [
 Internalizations
 """
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en"
 TIME_ZONE = "UTC"
+
+LANGUAGES = [
+    ("en", _("English")),
+    ("ru", _("Russian")),
+    ("kk", _("Kazakh")),
+]
+
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, "locale"),
+]
+
 USE_I18N = True
 USE_TZ = True
 
@@ -217,3 +261,10 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+"""
+Email
+"""
+
+DEFAULT_FROM_EMAIL = "noreply@blogapi.com"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

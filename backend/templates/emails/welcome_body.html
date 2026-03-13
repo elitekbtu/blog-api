@@ -1,0 +1,31 @@
+{% load i18n %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% blocktrans with site="Blog API" %}Welcome to {{ site }}{% endblocktrans %}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .header { background: #1a1a2e; padding: 32px 40px; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 22px; letter-spacing: .5px; }
+    .body { padding: 32px 40px; color: #333333; line-height: 1.7; }
+    .body p { margin: 0 0 16px; }
+    .footer { padding: 20px 40px; background: #f4f4f4; color: #888888; font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <h1>Blog API</h1>
+    </div>
+    <div class="body">
+      <p>{% blocktrans with first_name=user.first_name %}Hello, {{ first_name }}!{% endblocktrans %}</p>
+      <p>{% blocktrans %}Thank you for registering on Blog API. Your account has been created successfully.{% endblocktrans %}</p>
+    </div>
+    <div class="footer">
+      {% trans "The Blog API Team" %}
+    </div>
+  </div>
+</body>
+</html>

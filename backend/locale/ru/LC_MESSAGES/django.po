@@ -1,0 +1,102 @@
+# Russian translations for Blog API.
+# Copyright (C) 2026
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: blog-api 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-13 00:00+0000\n"
+"PO-Revision-Date: 2026-03-13 00:00+0000\n"
+"Last-Translator: \n"
+"Language: ru\n"
+"Language-Team: Russian\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# ---------------------------------------------------------------------------
+# User / profile
+# ---------------------------------------------------------------------------
+
+msgid "Profile retrieved successfully"
+msgstr "Профиль успешно получен"
+
+msgid "Preferences retrieved successfully"
+msgstr "Настройки успешно получены"
+
+msgid "User preferences updated successfully"
+msgstr "Настройки пользователя успешно обновлены"
+
+msgid "Invalid input data"
+msgstr "Некорректные входные данные"
+
+# ---------------------------------------------------------------------------
+# Language & timezone validation
+# ---------------------------------------------------------------------------
+
+msgid "Unsupported language."
+msgstr "Неподдерживаемый язык."
+
+msgid "Invalid timezone. Must be a valid IANA timezone identifier."
+msgstr ""
+"Неверный часовой пояс. Укажите корректный идентификатор часового пояса IANA."
+
+# ---------------------------------------------------------------------------
+# Language names
+# ---------------------------------------------------------------------------
+
+msgid "English"
+msgstr "Английский"
+
+msgid "Russian"
+msgstr "Русский"
+
+msgid "Kazakh"
+msgstr "Казахский"
+
+# ---------------------------------------------------------------------------
+# Django / DRF built-in messages (override to ensure correct language)
+# ---------------------------------------------------------------------------
+
+msgid "This field is required."
+msgstr "Это поле обязательно для заполнения."
+
+msgid "Enter a valid email address."
+msgstr "Введите корректный адрес электронной почты."
+
+msgid "Ensure this field has no more than %(max_length)s characters."
+msgstr ""
+"Убедитесь, что это поле содержит не более %(max_length)s символов."
+
+msgid "A user with that email already exists."
+msgstr "Пользователь с таким адресом электронной почты уже существует."
+
+msgid "This password is too short. It must contain at least %(min_length)d character."
+msgid_plural "This password is too short. It must contain at least %(min_length)d characters."
+msgstr[0] "Пароль слишком короткий. Он должен содержать не менее %(min_length)d символа."
+msgstr[1] "Пароль слишком короткий. Он должен содержать не менее %(min_length)d символов."
+msgstr[2] "Пароль слишком короткий. Он должен содержать не менее %(min_length)d символов."
+
+msgid "Authentication credentials were not provided."
+msgstr "Учётные данные не были предоставлены."
+
+msgid "Given token not valid for any token type"
+msgstr "Токен недействителен или истёк срок его действия."
+
+# ---------------------------------------------------------------------------
+# Welcome email
+# ---------------------------------------------------------------------------
+
+msgid "Welcome to %(site)s"
+msgstr "Добро пожаловать в %(site)s"
+
+msgid "Hello, %(first_name)s!"
+msgstr "Здравствуйте, %(first_name)s!"
+
+msgid "Thank you for registering on Blog API. Your account has been created successfully."
+msgstr "Спасибо за регистрацию на Blog API. Ваш аккаунт успешно создан."
+
+msgid "The Blog API Team"
+msgstr "Команда Blog API"

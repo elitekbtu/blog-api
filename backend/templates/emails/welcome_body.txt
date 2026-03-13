@@ -1,0 +1,5 @@
+{% load i18n %}{% blocktrans with first_name=user.first_name %}Hello, {{ first_name }}!{% endblocktrans %}
+
+{% blocktrans %}Thank you for registering on Blog API. Your account has been created successfully.{% endblocktrans %}
+
+{% trans "The Blog API Team" %}

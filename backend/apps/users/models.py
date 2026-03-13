@@ -21,6 +21,7 @@ FIRST_NAME_MAX_LENGTH = 50
 LAST_NAME_MAX_LENGTH = 50
 
 
+
 class CustomUser(
     AbstractBaseUser,
     PermissionsMixin,
@@ -78,6 +79,22 @@ class CustomUser(
         upload_to="avatars/",
         blank=True,
         null=True,
+    )
+    LANGUAGE_CHOICES = [
+        ("en", "English"),
+        ("ru", "Russian"),
+        ("kk", "Kazakh"),
+    ]
+
+    preferred_language = CharField(
+        max_length=10,
+        choices=LANGUAGE_CHOICES,
+        default="en",
+    )
+
+    timezone = CharField(
+        max_length=50,
+        default="UTC",
     )
 
     USERNAME_FIELD = "email"

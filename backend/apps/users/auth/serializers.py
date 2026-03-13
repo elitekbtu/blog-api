@@ -16,6 +16,7 @@ from django.contrib.auth import authenticate
 
 # Project modules
 from apps.users.models import CustomUser
+from utils.email import send_welcome_email
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class RegistrationSerializer(ModelSerializer):
             "email",
             "first_name",
             "last_name",
+            "preferred_language",
             "password",
             "password_confirm",
             "tokens",
@@ -72,6 +74,7 @@ class RegistrationSerializer(ModelSerializer):
         validated_data.pop("password_confirm")
         user = CustomUser.objects.create_user(**validated_data)
         logger.info(f"User created successfully: user_id={user.id}, email={email}")
+        send_welcome_email(user)
         return user
 
     def get_tokens(self, obj: CustomUser) -> dict[str, str]:

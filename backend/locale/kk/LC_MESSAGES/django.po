@@ -1,0 +1,99 @@
+# Kazakh translations for Blog API.
+# Copyright (C) 2026
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: blog-api 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-13 00:00+0000\n"
+"PO-Revision-Date: 2026-03-13 00:00+0000\n"
+"Last-Translator: \n"
+"Language: kk\n"
+"Language-Team: Kazakh\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# ---------------------------------------------------------------------------
+# User / profile
+# ---------------------------------------------------------------------------
+
+msgid "Profile retrieved successfully"
+msgstr "Профиль сәтті алынды"
+
+msgid "Preferences retrieved successfully"
+msgstr "Параметрлер сәтті алынды"
+
+msgid "User preferences updated successfully"
+msgstr "Пайдаланушы параметрлері сәтті жаңартылды"
+
+msgid "Invalid input data"
+msgstr "Жарамсыз кіріс деректері"
+
+# ---------------------------------------------------------------------------
+# Language & timezone validation
+# ---------------------------------------------------------------------------
+
+msgid "Unsupported language."
+msgstr "Қолдау көрсетілмейтін тіл."
+
+msgid "Invalid timezone. Must be a valid IANA timezone identifier."
+msgstr ""
+"Жарамсыз уақыт белдеуі. Жарамды IANA уақыт белдеуі идентификаторын "
+"көрсетіңіз."
+
+# ---------------------------------------------------------------------------
+# Language names
+# ---------------------------------------------------------------------------
+
+msgid "English"
+msgstr "Ағылшын"
+
+msgid "Russian"
+msgstr "Орыс"
+
+msgid "Kazakh"
+msgstr "Қазақ"
+
+# ---------------------------------------------------------------------------
+# Django / DRF built-in messages (override to ensure correct language)
+# ---------------------------------------------------------------------------
+
+msgid "This field is required."
+msgstr "Бұл өріс міндетті."
+
+msgid "Enter a valid email address."
+msgstr "Жарамды электрондық пошта мекенжайын енгізіңіз."
+
+msgid "Ensure this field has no more than %(max_length)s characters."
+msgstr "Бұл өрісте %(max_length)s таңбадан аспайтындығын тексеріңіз."
+
+msgid "A user with that email already exists."
+msgstr "Бұл электрондық пошта мекенжайымен пайдаланушы бұрыннан бар."
+
+msgid "This password is too short. It must contain at least %(min_length)d character."
+msgid_plural "This password is too short. It must contain at least %(min_length)d characters."
+msgstr[0] "Бұл құпия сөз тым қысқа. Ол кемінде %(min_length)d таңбадан тұруы керек."
+
+msgid "Authentication credentials were not provided."
+msgstr "Аутентификация деректері берілмеді."
+
+msgid "Given token not valid for any token type"
+msgstr "Токен жарамсыз немесе мерзімі өтті."
+
+# ---------------------------------------------------------------------------
+# Welcome email
+# ---------------------------------------------------------------------------
+
+msgid "Welcome to %(site)s"
+msgstr "%(site)s-ге қош келдіңіз"
+
+msgid "Hello, %(first_name)s!"
+msgstr "Сәлем, %(first_name)s!"
+
+msgid "Thank you for registering on Blog API. Your account has been created successfully."
+msgstr "Blog API-ге тіркелгеніңіз үшін рахмет. Сіздің аккаунтыңыз сәтті жасалды."
+
+msgid "The Blog API Team"
+msgstr "Blog API командасы"

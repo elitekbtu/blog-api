@@ -2,10 +2,14 @@
 from datetime import datetime
 import logging
 
+# Django modules
+from django.utils.translation import get_language
+
 # Third-party modules
 from rest_framework.serializers import (
     ModelSerializer,
     DateTimeField,
+    SerializerMethodField,
     SlugField,
     PrimaryKeyRelatedField,
 )
@@ -14,6 +18,7 @@ from rest_framework.serializers import (
 from apps.blog.models import Post, Category, Tag, Comment
 from apps.users.models import CustomUser
 from apps.blog.redis_client import publish_comment_event
+from utils.datetime_helper import format_user_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +41,15 @@ class AuthorSerializer(ModelSerializer):
 
 class CategorySerializer(ModelSerializer):
     """
-    Base Category Serializer
+    Base Category Serializer.
+
+    The ``name`` field is locale-aware: it returns the Russian translation
+    when the active language is ``ru``, the Kazakh translation when ``kk``,
+    and falls back to the English ``name`` in all other cases (including when
+    a translation has not been filled in yet).
     """
+
+    name = SerializerMethodField()
 
     class Meta:
         model = Category
@@ -46,6 +58,14 @@ class CategorySerializer(ModelSerializer):
             "name",
             "slug",
         ]
+
+    def get_name(self, obj: Category) -> str:
+        lang = get_language() or "en"
+        if lang.startswith("ru"):
+            return obj.name_ru or obj.name
+        if lang.startswith("kk"):
+            return obj.name_kk or obj.name
+        return obj.name
 
 
 class TagSerializer(ModelSerializer):
@@ -90,7 +110,12 @@ class PostListSerializer(ModelSerializer):
         logger.debug(
             f"Serializing post list item: post_id={instance.id}, slug={instance.slug}"
         )
-        return super().to_representation(instance)
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = request.user if request else None
+        if instance.created_at:
+            data["created_at"] = format_user_datetime(instance.created_at, user)
+        return data
 
 
 class PostDetailSerializer(ModelSerializer):
@@ -130,7 +155,14 @@ class PostDetailSerializer(ModelSerializer):
         logger.debug(
             f"Serializing post detail: post_id={instance.id}, slug={instance.slug}"
         )
-        return super().to_representation(instance)
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = request.user if request else None
+        if instance.created_at:
+            data["created_at"] = format_user_datetime(instance.created_at, user)
+        if instance.updated_at:
+            data["updated_at"] = format_user_datetime(instance.updated_at, user)
+        return data
 
 
 class PostCreateUpdateSerializer(ModelSerializer):
@@ -200,6 +232,16 @@ class CommentSerializer(ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = request.user if request else None
+        if instance.created_at:
+            data["created_at"] = format_user_datetime(instance.created_at, user)
+        if instance.updated_at:
+            data["updated_at"] = format_user_datetime(instance.updated_at, user)
+        return data
 
     def validate(self, attrs):
         logger.debug(

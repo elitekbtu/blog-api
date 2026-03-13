@@ -26,7 +26,9 @@ class Category(AbstractTimeStamptModel):
     Blog post category.
 
     Fields:
-        - name (CharField): Unique category name.
+        - name (CharField): Unique English category name (used as slug base and fallback).
+        - name_ru (CharField): Russian translation of the category name.
+        - name_kk (CharField): Kazakh translation of the category name.
         - slug (SlugField): Unique URL-friendly identifier.
 
     Reverse relations:
@@ -36,6 +38,18 @@ class Category(AbstractTimeStamptModel):
     name = CharField(
         max_length=CATEGORY_MAX_NAME_LENGTH,
         unique=True,
+    )
+    name_ru = CharField(
+        max_length=CATEGORY_MAX_NAME_LENGTH,
+        blank=True,
+        default="",
+        verbose_name="Name (Russian)",
+    )
+    name_kk = CharField(
+        max_length=CATEGORY_MAX_NAME_LENGTH,
+        blank=True,
+        default="",
+        verbose_name="Name (Kazakh)",
     )
     slug = SlugField(unique=True)
 

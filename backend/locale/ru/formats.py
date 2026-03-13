@@ -1,0 +1,1 @@
+DATETIME_FORMAT = "j F Y г. H:i"

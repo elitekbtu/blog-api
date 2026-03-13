@@ -2,8 +2,10 @@
 from typing import Any
 import logging
 
+
 # Third-party modules
 from rest_framework.viewsets import ViewSet
+from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response as DRFResponse
@@ -16,6 +18,12 @@ from rest_framework.status import (
     HTTP_401_UNAUTHORIZED,
 )
 from rest_framework.exceptions import NotFound, PermissionDenied
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 
 # Django modules
 from django.db.models import Q
@@ -33,7 +41,45 @@ from apps.blog.permissions import IsAuthorOrReadOnly
 from apps.abstract.pagination import DefaultPagination
 from apps.abstract.ratelimit import ratelimit
 
+from utils.cache_key import build_posts_cache_key
+
 logger = logging.getLogger(__name__)
+
+BlogUnauthorizedErrorResponse = inline_serializer(
+    name="BlogUnauthorizedErrorResponse",
+    fields={
+        "detail": serializers.CharField(),
+    },
+)
+
+BlogForbiddenErrorResponse = inline_serializer(
+    name="BlogForbiddenErrorResponse",
+    fields={
+        "detail": serializers.CharField(required=False),
+    },
+)
+
+BlogNotFoundErrorResponse = inline_serializer(
+    name="BlogNotFoundErrorResponse",
+    fields={
+        "detail": serializers.CharField(),
+    },
+)
+
+BlogRateLimitErrorResponse = inline_serializer(
+    name="BlogRateLimitErrorResponse",
+    fields={
+        "detail": serializers.CharField(),
+    },
+)
+
+BlogValidationErrorResponse = inline_serializer(
+    name="BlogValidationErrorResponse",
+    fields={
+        "detail": serializers.CharField(required=False),
+        "errors": serializers.DictField(required=False),
+    },
+)
 
 
 class PostViewSet(ViewSet):
@@ -51,6 +97,17 @@ class PostViewSet(ViewSet):
     lookup_field: str = "slug"
     permission_classes: tuple = (IsAuthorOrReadOnly,)
     pagination_class = DefaultPagination
+    serializer_class = PostDetailSerializer
+
+    def get_serializer_class(self):
+        action = getattr(self, "action", None)
+        if action == "list":
+            return PostListSerializer
+        if action in {"create", "partial_update"}:
+            return PostCreateUpdateSerializer
+        if action == "comments":
+            return CommentSerializer
+        return self.serializer_class
 
     def get_permissions(self):
         return [permission() for permission in self.permission_classes]
@@ -65,6 +122,72 @@ class PostViewSet(ViewSet):
             if not permission.has_object_permission(request, self, obj):
                 raise PermissionDenied()
 
+    @extend_schema(
+        tags=["Posts", "Stats"],
+        summary="List posts visible to current user",
+        description=(
+            "Returns a paginated list of posts. Authentication is optional. Anonymous users only see "
+            "published posts; authenticated users see published posts plus their own drafts. "
+            "Side effects: for anonymous requests, list responses are cached for 60 seconds by a "
+            "query-dependent cache key; authenticated responses are not cached. Language behavior: "
+            "category names are localized by active language. Timezone behavior: `created_at` values "
+            "are formatted using authenticated user's timezone; anonymous users receive UTC-based formatting.\n\n"
+            "Request example:\n"
+            "GET /api/posts/?cursor=<cursor>&page_size=10\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"next\": null,\n"
+            "  \"previous\": null,\n"
+            "  \"results\": [\n"
+            "    {\n"
+            "      \"id\": 1,\n"
+            "      \"title\": \"Django Tips\",\n"
+            "      \"slug\": \"django-tips\",\n"
+            "      \"status\": \"published\"\n"
+            "    }\n"
+            "  ]\n"
+            "}"
+        ),
+        responses={
+            200: OpenApiResponse(
+                response=PostListSerializer(many=True),
+                description="Posts listed successfully (typically paginated).",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Post List Success",
+                value={
+                    "next": None,
+                    "previous": None,
+                    "results": [
+                        {
+                            "id": 1,
+                            "author": {
+                                "id": 7,
+                                "email": "alice@example.com",
+                                "first_name": "Alice",
+                                "last_name": "Smith",
+                                "avatar": None,
+                            },
+                            "title": "Django Tips",
+                            "slug": "django-tips",
+                            "category": {
+                                "id": 2,
+                                "name": "Backend",
+                                "slug": "backend",
+                            },
+                            "tags": [{"id": 3, "name": "django", "slug": "django"}],
+                            "status": "published",
+                            "created_at": "14:20 13-03-2026",
+                        }
+                    ],
+                },
+                response_only=True,
+                status_codes=["200"],
+            )
+        ],
+    )
     def list(
         self,
         request: DRFRequest,
@@ -90,16 +213,20 @@ class PostViewSet(ViewSet):
             page = paginator.paginate_queryset(queryset, request, view=self)
 
             if page is not None:
-                serializer: PostListSerializer = PostListSerializer(page, many=True)
+                serializer: PostListSerializer = PostListSerializer(
+                    page, many=True, context={"request": request}
+                )
                 return paginator.get_paginated_response(serializer.data)
 
-            serializer: PostListSerializer = PostListSerializer(queryset, many=True)
+            serializer: PostListSerializer = PostListSerializer(
+                queryset, many=True, context={"request": request}
+            )
             return DRFResponse(
                 data=serializer.data,
                 status=HTTP_200_OK,
             )
 
-        cache_key = "published_posts_list"
+        cache_key = build_posts_cache_key(request)
         cached_data = cache.get(cache_key)
 
         if cached_data is not None:
@@ -108,6 +235,7 @@ class PostViewSet(ViewSet):
                 data=cached_data,
                 status=HTTP_200_OK,
             )
+
         logger.info(f"Cache miss - fetching posts from database for {user_info}")
         queryset = Post.objects.filter(status=Post.Status.PUBLISHED)
         logger.debug(f"Posts queryset count: {queryset.count()} for {user_info}")
@@ -116,7 +244,9 @@ class PostViewSet(ViewSet):
         page = paginator.paginate_queryset(queryset, request, view=self)
 
         if page is not None:
-            serializer: PostListSerializer = PostListSerializer(page, many=True)
+            serializer: PostListSerializer = PostListSerializer(
+                page, many=True, context={"request": request}
+            )
             response_data = paginator.get_paginated_response(serializer.data).data
             cache.set(cache_key, response_data, 60)
             logger.info("Cached posts list for 60 seconds")
@@ -125,7 +255,9 @@ class PostViewSet(ViewSet):
                 status=HTTP_200_OK,
             )
 
-        serializer: PostListSerializer = PostListSerializer(queryset, many=True)
+        serializer: PostListSerializer = PostListSerializer(
+            queryset, many=True, context={"request": request}
+        )
         response_data = serializer.data
         cache.set(cache_key, response_data, 60)
         logger.info("Cached posts list for 60 seconds")
@@ -134,6 +266,98 @@ class PostViewSet(ViewSet):
             status=HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Create a new post",
+        description=(
+            "Creates a post owned by the authenticated user. Authentication is required. "
+            "Side effects: invalidates post list cache key `published_posts_list` after successful "
+            "creation and writes audit logs. Language behavior: validation errors can be localized. "
+            "Timezone behavior: response datetime fields follow serializer formatting rules.\n\n"
+            "Request example:\n"
+            "POST /api/posts/\n"
+            "Authorization: Bearer <jwt-access-token>\n"
+            "{\n"
+            "  \"title\": \"Django Tips\",\n"
+            "  \"body\": \"Use serializers wisely.\",\n"
+            "  \"category\": 2,\n"
+            "  \"tags\": [3],\n"
+            "  \"status\": \"published\"\n"
+            "}\n\n"
+            "Response example (201):\n"
+            "{\n"
+            "  \"id\": 15,\n"
+            "  \"title\": \"Django Tips\",\n"
+            "  \"slug\": \"django-tips\",\n"
+            "  \"status\": \"published\"\n"
+            "}"
+        ),
+        request=PostCreateUpdateSerializer,
+        responses={
+            201: OpenApiResponse(
+                response=PostCreateUpdateSerializer,
+                description="Post created successfully.",
+            ),
+            400: OpenApiResponse(
+                response=BlogValidationErrorResponse,
+                description="Invalid post payload.",
+            ),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required.",
+            ),
+            429: OpenApiResponse(
+                response=BlogRateLimitErrorResponse,
+                description="Too many post creation requests.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Create Post Request",
+                value={
+                    "title": "Django Tips",
+                    "body": "Use serializers wisely.",
+                    "category": 2,
+                    "tags": [3],
+                    "status": "published",
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Create Post Success",
+                value={
+                    "id": 15,
+                    "author": {
+                        "id": 7,
+                        "email": "alice@example.com",
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "avatar": None,
+                    },
+                    "title": "Django Tips",
+                    "slug": "django-tips",
+                    "body": "Use serializers wisely.",
+                    "category": 2,
+                    "tags": [3],
+                    "status": "published",
+                },
+                response_only=True,
+                status_codes=["201"],
+            ),
+            OpenApiExample(
+                "Create Post Unauthorized",
+                value={"detail": "Authentication required."},
+                response_only=True,
+                status_codes=["401"],
+            ),
+            OpenApiExample(
+                "Create Post Rate Limit",
+                value={"detail": "Too many requests. Try again later."},
+                response_only=True,
+                status_codes=["429"],
+            ),
+        ],
+    )
     @ratelimit(key_func=lambda r: str(r.user.id) if r.user.is_authenticated else "anonymous", rate="20/m", method="POST")
     def create(
         self,
@@ -179,6 +403,67 @@ class PostViewSet(ViewSet):
             status=HTTP_400_BAD_REQUEST,
         )
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Retrieve a post by slug",
+        description=(
+            "Returns full post details for the given slug. Authentication is optional. "
+            "Side effects: none besides access logging. Language behavior: category name is localized "
+            "by active request language. Timezone behavior: `created_at` and `updated_at` are formatted "
+            "in authenticated user's timezone or UTC for anonymous requests.\n\n"
+            "Request example:\n"
+            "GET /api/posts/django-tips/\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"id\": 15,\n"
+            "  \"title\": \"Django Tips\",\n"
+            "  \"slug\": \"django-tips\",\n"
+            "  \"body\": \"Use serializers wisely.\",\n"
+            "  \"status\": \"published\"\n"
+            "}"
+        ),
+        responses={
+            200: OpenApiResponse(
+                response=PostDetailSerializer,
+                description="Post details returned successfully.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Post with provided slug was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Retrieve Post Success",
+                value={
+                    "id": 15,
+                    "author": {
+                        "id": 7,
+                        "email": "alice@example.com",
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "avatar": None,
+                    },
+                    "title": "Django Tips",
+                    "slug": "django-tips",
+                    "body": "Use serializers wisely.",
+                    "category": {"id": 2, "name": "Backend", "slug": "backend"},
+                    "tags": [{"id": 3, "name": "django", "slug": "django"}],
+                    "status": "published",
+                    "created_at": "14:20 13-03-2026",
+                    "updated_at": "14:20 13-03-2026",
+                },
+                response_only=True,
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                "Retrieve Post Not Found",
+                value={"detail": "Post not found"},
+                response_only=True,
+                status_codes=["404"],
+            ),
+        ],
+    )
     def retrieve(
         self,
         request: DRFRequest,
@@ -198,12 +483,82 @@ class PostViewSet(ViewSet):
             logger.warning(f"Post not found: slug={slug}")
             raise NotFound(detail="Post not found")
 
-        serializer: PostDetailSerializer = PostDetailSerializer(post)
+        serializer: PostDetailSerializer = PostDetailSerializer(
+            post, context={"request": request}
+        )
         return DRFResponse(
             data=serializer.data,
             status=HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Partially update own post by slug",
+        description=(
+            "Partially updates an existing post identified by slug. Authentication is required and only "
+            "the author can update. Side effects: invalidates cache key `published_posts_list` on success. "
+            "Language behavior: validation errors may be localized. Timezone behavior: datetime fields in "
+            "response follow serializer formatting rules.\n\n"
+            "Request example:\n"
+            "PATCH /api/posts/django-tips/\n"
+            "Authorization: Bearer <jwt-access-token>\n"
+            "{\n"
+            "  \"status\": \"published\"\n"
+            "}\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"id\": 15,\n"
+            "  \"status\": \"published\"\n"
+            "}"
+        ),
+        request=PostCreateUpdateSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=PostCreateUpdateSerializer,
+                description="Post updated successfully.",
+            ),
+            400: OpenApiResponse(
+                response=BlogValidationErrorResponse,
+                description="Invalid patch payload.",
+            ),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required.",
+            ),
+            403: OpenApiResponse(
+                response=BlogForbiddenErrorResponse,
+                description="Authenticated user is not the post author.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Post with provided slug was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Patch Post Request",
+                value={"status": "published"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Patch Post Success",
+                value={
+                    "id": 15,
+                    "title": "Django Tips",
+                    "slug": "django-tips",
+                    "status": "published",
+                },
+                response_only=True,
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                "Patch Post Forbidden",
+                value={"detail": "You do not have permission to perform this action."},
+                response_only=True,
+                status_codes=["403"],
+            ),
+        ],
+    )
     def partial_update(
         self,
         request: DRFRequest,
@@ -261,6 +616,48 @@ class PostViewSet(ViewSet):
             status=HTTP_400_BAD_REQUEST,
         )
 
+    @extend_schema(
+        tags=["Posts"],
+        summary="Delete own post by slug",
+        description=(
+            "Deletes a post identified by slug. Authentication is required and only the author can delete. "
+            "Side effects: permanently deletes post record. Language/timezone behavior: not applicable for "
+            "successful 204 response body-less output.\n\n"
+            "Request example:\n"
+            "DELETE /api/posts/django-tips/\n"
+            "Authorization: Bearer <jwt-access-token>\n\n"
+            "Response example (204): no content"
+        ),
+        responses={
+            204: OpenApiResponse(description="Post deleted successfully."),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required.",
+            ),
+            403: OpenApiResponse(
+                response=BlogForbiddenErrorResponse,
+                description="Authenticated user is not the post author.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Post with provided slug was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Delete Post Forbidden",
+                value={"detail": "You do not have permission to perform this action."},
+                response_only=True,
+                status_codes=["403"],
+            ),
+            OpenApiExample(
+                "Delete Post Not Found",
+                value={"detail": "Post not found"},
+                response_only=True,
+                status_codes=["404"],
+            ),
+        ],
+    )
     def destroy(
         self,
         request: DRFRequest,
@@ -295,13 +692,104 @@ class PostViewSet(ViewSet):
             f"slug={slug}, user_id={request.user.id}"
         )
         return DRFResponse(status=HTTP_204_NO_CONTENT)
-
+    
     @action(
         detail=True,
         methods=("GET", "POST"),
         url_path="comments",
         url_name="comments",
         permission_classes=(AllowAny,),
+    )
+    @extend_schema(
+        tags=["Comments"],
+        summary="List comments for a post or add a new comment",
+        description=(
+            "GET returns comments for a post by slug (authentication optional). POST creates a new comment "
+            "for that post (authentication required). Side effects: on successful POST, publishes a Redis "
+            "event to channel `comments`. Language behavior: validation errors/messages may be localized. "
+            "Timezone behavior: comment timestamps are formatted in the authenticated user's timezone or UTC "
+            "for anonymous GET requests.\n\n"
+            "GET request example:\n"
+            "GET /api/posts/django-tips/comments/\n\n"
+            "POST request example:\n"
+            "POST /api/posts/django-tips/comments/\n"
+            "Authorization: Bearer <jwt-access-token>\n"
+            "{\n"
+            "  \"body\": \"Great article!\"\n"
+            "}"
+        ),
+        request=CommentSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=CommentSerializer(many=True),
+                description="Comments listed successfully (GET).",
+            ),
+            201: OpenApiResponse(
+                response=CommentSerializer,
+                description="Comment created successfully (POST).",
+            ),
+            400: OpenApiResponse(
+                response=BlogValidationErrorResponse,
+                description="Invalid comment payload.",
+            ),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required to create a comment.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Post with provided slug was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Create Comment Request",
+                value={"body": "Great article!"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "List Comments Success",
+                value={
+                    "next": None,
+                    "previous": None,
+                    "results": [
+                        {
+                            "id": 33,
+                            "author": {
+                                "id": 7,
+                                "email": "alice@example.com",
+                                "first_name": "Alice",
+                                "last_name": "Smith",
+                                "avatar": None,
+                            },
+                            "body": "Great article!",
+                            "created_at": "16:30 13-03-2026",
+                            "updated_at": "16:30 13-03-2026",
+                        }
+                    ],
+                },
+                response_only=True,
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                "Create Comment Success",
+                value={
+                    "id": 33,
+                    "author": {
+                        "id": 7,
+                        "email": "alice@example.com",
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "avatar": None,
+                    },
+                    "body": "Great article!",
+                    "created_at": "16:30 13-03-2026",
+                    "updated_at": "16:30 13-03-2026",
+                },
+                response_only=True,
+                status_codes=["201"],
+            ),
+        ],
     )
     def comments(
         self,
@@ -326,10 +814,14 @@ class PostViewSet(ViewSet):
             page = paginator.paginate_queryset(comments_qs, request, view=self)
 
             if page is not None:
-                serializer: CommentSerializer = CommentSerializer(page, many=True)
+                serializer: CommentSerializer = CommentSerializer(
+                    page, many=True, context={"request": request}
+                )
                 return paginator.get_paginated_response(serializer.data)
 
-            serializer: CommentSerializer = CommentSerializer(comments_qs, many=True)
+            serializer: CommentSerializer = CommentSerializer(
+                comments_qs, many=True, context={"request": request}
+            )
             return DRFResponse(
                 data=serializer.data,
                 status=HTTP_200_OK,
@@ -349,7 +841,9 @@ class PostViewSet(ViewSet):
                 f"Creating comment: post_id={post.id}, user_id={request.user.id}"
             )
 
-            serializer: CommentSerializer = CommentSerializer(data=request.data)
+            serializer: CommentSerializer = CommentSerializer(
+                data=request.data, context={"request": request}
+            )
             if serializer.is_valid():
                 comment = serializer.save(author=request.user, post=post)
                 logger.info(
@@ -374,6 +868,10 @@ class PostViewSet(ViewSet):
 class CommentViewSet(ViewSet):
     permission_classes: tuple = (IsAuthorOrReadOnly,)
     pagination_class = DefaultPagination
+    serializer_class = CommentSerializer
+
+    def get_serializer_class(self):
+        return self.serializer_class
 
     def get_permissions(self):
         return [permission() for permission in self.permission_classes]
@@ -388,6 +886,61 @@ class CommentViewSet(ViewSet):
             if not permission.has_object_permission(request, self, obj):
                 raise PermissionDenied()
 
+    @extend_schema(
+        tags=["Comments", "Stats"],
+        summary="List all comments",
+        description=(
+            "Returns a paginated list of all comments ordered by newest first. Authentication is optional. "
+            "Side effects: none. Language behavior: none for body text, but translated errors can appear for "
+            "other methods in this viewset. Timezone behavior: timestamp fields are formatted in authenticated "
+            "user timezone or UTC for anonymous requests.\n\n"
+            "Request example:\n"
+            "GET /api/comments/?cursor=<cursor>&page_size=10\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"next\": null,\n"
+            "  \"previous\": null,\n"
+            "  \"results\": [\n"
+            "    {\n"
+            "      \"id\": 33,\n"
+            "      \"body\": \"Great article!\"\n"
+            "    }\n"
+            "  ]\n"
+            "}"
+        ),
+        responses={
+            200: OpenApiResponse(
+                response=CommentSerializer(many=True),
+                description="Comments listed successfully (typically paginated).",
+            )
+        },
+        examples=[
+            OpenApiExample(
+                "Comment List Success",
+                value={
+                    "next": None,
+                    "previous": None,
+                    "results": [
+                        {
+                            "id": 33,
+                            "author": {
+                                "id": 7,
+                                "email": "alice@example.com",
+                                "first_name": "Alice",
+                                "last_name": "Smith",
+                                "avatar": None,
+                            },
+                            "body": "Great article!",
+                            "created_at": "16:30 13-03-2026",
+                            "updated_at": "16:30 13-03-2026",
+                        }
+                    ],
+                },
+                response_only=True,
+                status_codes=["200"],
+            )
+        ],
+    )
     def list(
         self,
         request: DRFRequest,
@@ -404,15 +957,71 @@ class CommentViewSet(ViewSet):
         page = paginator.paginate_queryset(queryset, request, view=self)
 
         if page is not None:
-            serializer: CommentSerializer = CommentSerializer(page, many=True)
+            serializer: CommentSerializer = CommentSerializer(
+                page, many=True, context={"request": request}
+            )
             return paginator.get_paginated_response(serializer.data)
 
-        serializer: CommentSerializer = CommentSerializer(queryset, many=True)
+        serializer: CommentSerializer = CommentSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return DRFResponse(
             data=serializer.data,
             status=HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Retrieve a comment by id",
+        description=(
+            "Returns a single comment by primary key. Authentication is optional. Side effects: none. "
+            "Language behavior: not applicable for comment content. Timezone behavior: timestamp fields are "
+            "formatted by authenticated user timezone or UTC for anonymous requests.\n\n"
+            "Request example:\n"
+            "GET /api/comments/33/\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"id\": 33,\n"
+            "  \"body\": \"Great article!\"\n"
+            "}"
+        ),
+        responses={
+            200: OpenApiResponse(
+                response=CommentSerializer,
+                description="Comment returned successfully.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Comment with provided id was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Retrieve Comment Success",
+                value={
+                    "id": 33,
+                    "author": {
+                        "id": 7,
+                        "email": "alice@example.com",
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "avatar": None,
+                    },
+                    "body": "Great article!",
+                    "created_at": "16:30 13-03-2026",
+                    "updated_at": "16:30 13-03-2026",
+                },
+                response_only=True,
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                "Retrieve Comment Not Found",
+                value={"detail": "Comment not found"},
+                response_only=True,
+                status_codes=["404"],
+            ),
+        ],
+    )
     def retrieve(
         self,
         request: DRFRequest,
@@ -431,12 +1040,88 @@ class CommentViewSet(ViewSet):
             logger.warning(f"Comment not found: pk={pk}")
             raise NotFound(detail="Comment not found")
 
-        serializer: CommentSerializer = CommentSerializer(comment)
+        serializer: CommentSerializer = CommentSerializer(
+            comment, context={"request": request}
+        )
         return DRFResponse(
             data=serializer.data,
             status=HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Partially update own comment",
+        description=(
+            "Partially updates an existing comment by id. Authentication is required and only the comment "
+            "author can update. Side effects: updates persisted comment data. Language behavior: validation "
+            "errors may be localized. Timezone behavior: updated timestamps are formatted by serializer rules.\n\n"
+            "Request example:\n"
+            "PATCH /api/comments/33/\n"
+            "Authorization: Bearer <jwt-access-token>\n"
+            "{\n"
+            "  \"body\": \"Updated text\"\n"
+            "}\n\n"
+            "Response example (200):\n"
+            "{\n"
+            "  \"id\": 33,\n"
+            "  \"body\": \"Updated text\"\n"
+            "}"
+        ),
+        request=CommentSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=CommentSerializer,
+                description="Comment updated successfully.",
+            ),
+            400: OpenApiResponse(
+                response=BlogValidationErrorResponse,
+                description="Invalid comment patch payload.",
+            ),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required.",
+            ),
+            403: OpenApiResponse(
+                response=BlogForbiddenErrorResponse,
+                description="Authenticated user is not the comment author.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Comment with provided id was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Patch Comment Request",
+                value={"body": "Updated text"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Patch Comment Success",
+                value={
+                    "id": 33,
+                    "author": {
+                        "id": 7,
+                        "email": "alice@example.com",
+                        "first_name": "Alice",
+                        "last_name": "Smith",
+                        "avatar": None,
+                    },
+                    "body": "Updated text",
+                    "created_at": "16:30 13-03-2026",
+                    "updated_at": "16:45 13-03-2026",
+                },
+                response_only=True,
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                "Patch Comment Forbidden",
+                value={"detail": "You do not have permission to perform this action."},
+                response_only=True,
+                status_codes=["403"],
+            ),
+        ],
+    )
     def partial_update(
         self,
         request: DRFRequest,
@@ -467,6 +1152,7 @@ class CommentViewSet(ViewSet):
             comment,
             data=request.data,
             partial=True,
+            context={"request": request},
         )
 
         if serializer.is_valid():
@@ -489,6 +1175,48 @@ class CommentViewSet(ViewSet):
             status=HTTP_400_BAD_REQUEST,
         )
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Delete own comment",
+        description=(
+            "Deletes a comment by id. Authentication is required and only the comment author can delete. "
+            "Side effects: permanently deletes the comment. Language/timezone behavior: not applicable for "
+            "204 no-content success response.\n\n"
+            "Request example:\n"
+            "DELETE /api/comments/33/\n"
+            "Authorization: Bearer <jwt-access-token>\n\n"
+            "Response example (204): no content"
+        ),
+        responses={
+            204: OpenApiResponse(description="Comment deleted successfully."),
+            401: OpenApiResponse(
+                response=BlogUnauthorizedErrorResponse,
+                description="Authentication required.",
+            ),
+            403: OpenApiResponse(
+                response=BlogForbiddenErrorResponse,
+                description="Authenticated user is not the comment author.",
+            ),
+            404: OpenApiResponse(
+                response=BlogNotFoundErrorResponse,
+                description="Comment with provided id was not found.",
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Delete Comment Forbidden",
+                value={"detail": "You do not have permission to perform this action."},
+                response_only=True,
+                status_codes=["403"],
+            ),
+            OpenApiExample(
+                "Delete Comment Not Found",
+                value={"detail": "Comment not found"},
+                response_only=True,
+                status_codes=["404"],
+            ),
+        ],
+    )
     def destroy(
         self,
         request: DRFRequest,

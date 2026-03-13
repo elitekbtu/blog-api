@@ -12,15 +12,26 @@ class CategoryAdmin(ModelAdmin):
 
     list_display = (
         "name",
+        "name_ru",
+        "name_kk",
         "slug",
         "created_at",
         "updated_at",
-        "deleted_at",
     )
 
-    search_fields = ("name",)
+    search_fields = ("name", "name_ru", "name_kk")
     prepopulated_fields = {"slug": ("name",)}
     ordering = ("-created_at",)
+
+    fieldsets = (
+        (None, {
+            "fields": ("slug",),
+        }),
+        ("Names", {
+            "fields": ("name", "name_ru", "name_kk"),
+            "description": "Provide the category name in each supported language.",
+        }),
+    )
 
 
 @admin.register(Tag)
@@ -57,7 +68,7 @@ class PostAdmin(ModelAdmin):
     search_fields = (
         "title",
         "body",
-        "author__email",  # или author__username если нужно
+        "author__email", 
         "category__name",
     )
 

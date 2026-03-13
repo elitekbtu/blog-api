@@ -20,6 +20,7 @@ def publish_comment_event(comment):
         event_data = {
             "id": comment.id,
             "post_id": comment.post.id,
+            "post_slug": comment.post.slug,
             "post_title": comment.post.title,
             "author_id": comment.author.id,
             "author_email": comment.author.email,
