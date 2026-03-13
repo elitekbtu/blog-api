@@ -1,10 +1,16 @@
 # Python modules
+import asyncio
+from datetime import datetime
 from typing import Any
 import logging
+from zoneinfo import ZoneInfo
 
 
 # Third-party modules
+import httpx
+from asgiref.sync import async_to_sync
 from rest_framework.viewsets import ViewSet
+from rest_framework.views import APIView
 from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -16,6 +22,7 @@ from rest_framework.status import (
     HTTP_204_NO_CONTENT,
     HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
+    HTTP_503_SERVICE_UNAVAILABLE,
 )
 from rest_framework.exceptions import NotFound, PermissionDenied
 from drf_spectacular.utils import (
@@ -1250,3 +1257,101 @@ class CommentViewSet(ViewSet):
             f"user_id={request.user.id}"
         )
         return DRFResponse(status=HTTP_204_NO_CONTENT)
+
+
+class StatsView(APIView):
+    permission_classes = (AllowAny,)
+
+    @extend_schema(
+        tags=["Stats"],
+        summary="Get public stats snapshot",
+        description=(
+            "Returns external exchange rates and current Almaty time. "
+            "The endpoint fetches both external APIs concurrently for lower latency."
+        ),
+        responses={
+            200: inline_serializer(
+                name="StatsResponse",
+                fields={
+                    "exchange_rates": serializers.DictField(),
+                    "almaty_time": serializers.CharField(),
+                    "timezone": serializers.CharField(),
+                    "time_source": serializers.CharField(),
+                },
+            ),
+            503: inline_serializer(
+                name="StatsErrorResponse",
+                fields={
+                    "detail": serializers.CharField(),
+                },
+            ),
+        },
+    )
+    def get(self, request: DRFRequest, *args: tuple[Any, ...], **kwargs: dict[str, Any]) -> DRFResponse:
+        try:
+            payload = async_to_sync(self._fetch_stats_snapshot)()
+            return DRFResponse(data=payload, status=HTTP_200_OK)
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(f"Failed to fetch stats snapshot: {exc}", exc_info=True)
+            return DRFResponse(
+                data={"detail": "Failed to fetch external stats providers."},
+                status=HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+    async def _fetch_stats_snapshot(self) -> dict[str, Any]:
+        # Async is used to run both outbound HTTP calls concurrently; synchronous requests would wait for each provider one by one.
+        exchange_url = "https://open.er-api.com/v6/latest/USD"
+        almaty_time_urls = (
+            "https://worldtimeapi.org/api/timezone/Asia/Almaty",
+            "http://worldtimeapi.org/api/timezone/Asia/Almaty",
+        )
+
+        async def fetch_almaty_time(client: httpx.AsyncClient) -> dict[str, str]:
+            last_exc: Exception | None = None
+            for url in almaty_time_urls:
+                try:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    payload = response.json()
+                    return {
+                        "almaty_time": payload.get("datetime") or "",
+                        "timezone": payload.get("timezone", "Asia/Almaty"),
+                        "time_source": "worldtimeapi.org",
+                    }
+                except httpx.HTTPError as exc:
+                    last_exc = exc
+
+            if last_exc is not None:
+                logger.warning(
+                    "worldtimeapi.org is unavailable, falling back to local Asia/Almaty time: %s",
+                    last_exc,
+                )
+
+            fallback_dt = datetime.now(ZoneInfo("Asia/Almaty")).isoformat()
+            return {
+                "almaty_time": fallback_dt,
+                "timezone": "Asia/Almaty",
+                "time_source": "local_fallback",
+            }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            exchange_response, time_payload = await asyncio.gather(
+                client.get(exchange_url),
+                fetch_almaty_time(client),
+            )
+
+        exchange_response.raise_for_status()
+
+        exchange_payload = exchange_response.json()
+        rates = exchange_payload.get("rates", {})
+
+        return {
+            "exchange_rates": {
+                "KZT": rates.get("KZT"),
+                "RUB": rates.get("RUB"),
+                "EUR": rates.get("EUR"),
+            },
+            "almaty_time": time_payload.get("almaty_time"),
+            "timezone": time_payload.get("timezone", "Asia/Almaty"),
+            "time_source": time_payload.get("time_source", "worldtimeapi.org"),
+        }
