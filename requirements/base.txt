@@ -22,3 +22,5 @@ referencing==0.37.0
 rpds-py==0.30.0
 sqlparse==0.5.5
 uritemplate==4.2.0
+channels==4.3.2
+channels-redis==4.0.0

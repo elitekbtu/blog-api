@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 # Third-party modules
 import httpx
+from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.viewsets import ViewSet
 from rest_framework.views import APIView
@@ -143,14 +144,14 @@ class PostViewSet(ViewSet):
             "GET /api/posts/?cursor=<cursor>&page_size=10\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"next\": null,\n"
-            "  \"previous\": null,\n"
-            "  \"results\": [\n"
+            '  "next": null,\n'
+            '  "previous": null,\n'
+            '  "results": [\n'
             "    {\n"
-            "      \"id\": 1,\n"
-            "      \"title\": \"Django Tips\",\n"
-            "      \"slug\": \"django-tips\",\n"
-            "      \"status\": \"published\"\n"
+            '      "id": 1,\n'
+            '      "title": "Django Tips",\n'
+            '      "slug": "django-tips",\n'
+            '      "status": "published"\n'
             "    }\n"
             "  ]\n"
             "}"
@@ -285,18 +286,18 @@ class PostViewSet(ViewSet):
             "POST /api/posts/\n"
             "Authorization: Bearer <jwt-access-token>\n"
             "{\n"
-            "  \"title\": \"Django Tips\",\n"
-            "  \"body\": \"Use serializers wisely.\",\n"
-            "  \"category\": 2,\n"
-            "  \"tags\": [3],\n"
-            "  \"status\": \"published\"\n"
+            '  "title": "Django Tips",\n'
+            '  "body": "Use serializers wisely.",\n'
+            '  "category": 2,\n'
+            '  "tags": [3],\n'
+            '  "status": "published"\n'
             "}\n\n"
             "Response example (201):\n"
             "{\n"
-            "  \"id\": 15,\n"
-            "  \"title\": \"Django Tips\",\n"
-            "  \"slug\": \"django-tips\",\n"
-            "  \"status\": \"published\"\n"
+            '  "id": 15,\n'
+            '  "title": "Django Tips",\n'
+            '  "slug": "django-tips",\n'
+            '  "status": "published"\n'
             "}"
         ),
         request=PostCreateUpdateSerializer,
@@ -365,7 +366,11 @@ class PostViewSet(ViewSet):
             ),
         ],
     )
-    @ratelimit(key_func=lambda r: str(r.user.id) if r.user.is_authenticated else "anonymous", rate="20/m", method="POST")
+    @ratelimit(
+        key_func=lambda r: str(r.user.id) if r.user.is_authenticated else "anonymous",
+        rate="20/m",
+        method="POST",
+    )
     def create(
         self,
         request: DRFRequest,
@@ -422,11 +427,11 @@ class PostViewSet(ViewSet):
             "GET /api/posts/django-tips/\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"id\": 15,\n"
-            "  \"title\": \"Django Tips\",\n"
-            "  \"slug\": \"django-tips\",\n"
-            "  \"body\": \"Use serializers wisely.\",\n"
-            "  \"status\": \"published\"\n"
+            '  "id": 15,\n'
+            '  "title": "Django Tips",\n'
+            '  "slug": "django-tips",\n'
+            '  "body": "Use serializers wisely.",\n'
+            '  "status": "published"\n'
             "}"
         ),
         responses={
@@ -510,12 +515,12 @@ class PostViewSet(ViewSet):
             "PATCH /api/posts/django-tips/\n"
             "Authorization: Bearer <jwt-access-token>\n"
             "{\n"
-            "  \"status\": \"published\"\n"
+            '  "status": "published"\n'
             "}\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"id\": 15,\n"
-            "  \"status\": \"published\"\n"
+            '  "id": 15,\n'
+            '  "status": "published"\n'
             "}"
         ),
         request=PostCreateUpdateSerializer,
@@ -699,7 +704,7 @@ class PostViewSet(ViewSet):
             f"slug={slug}, user_id={request.user.id}"
         )
         return DRFResponse(status=HTTP_204_NO_CONTENT)
-    
+
     @action(
         detail=True,
         methods=("GET", "POST"),
@@ -722,7 +727,7 @@ class PostViewSet(ViewSet):
             "POST /api/posts/django-tips/comments/\n"
             "Authorization: Bearer <jwt-access-token>\n"
             "{\n"
-            "  \"body\": \"Great article!\"\n"
+            '  "body": "Great article!"\n'
             "}"
         ),
         request=CommentSerializer,
@@ -853,10 +858,30 @@ class PostViewSet(ViewSet):
             )
             if serializer.is_valid():
                 comment = serializer.save(author=request.user, post=post)
+
+                channel_layer = get_channel_layer()
+                payload = {
+                    "comment_id": comment.id,
+                    "author": {
+                        "id": comment.author.id,
+                        "email": comment.author.email,
+                    },
+                    "body": comment.body,
+                    "created_at": comment.created_at.isoformat(),
+                }
+                async_to_sync(channel_layer.group_send)(
+                    f"post_{post.slug}-messages",
+                    {
+                        "type": "comment_message",
+                        "comment": payload,
+                        "slug": post.slug,
+                    },
+                )
                 logger.info(
                     f"Comment created successfully: comment_id={comment.id}, "
                     f"post_id={post.id}, user_id={request.user.id}"
                 )
+
                 return DRFResponse(
                     data=serializer.data,
                     status=HTTP_201_CREATED,
@@ -905,12 +930,12 @@ class CommentViewSet(ViewSet):
             "GET /api/comments/?cursor=<cursor>&page_size=10\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"next\": null,\n"
-            "  \"previous\": null,\n"
-            "  \"results\": [\n"
+            '  "next": null,\n'
+            '  "previous": null,\n'
+            '  "results": [\n'
             "    {\n"
-            "      \"id\": 33,\n"
-            "      \"body\": \"Great article!\"\n"
+            '      "id": 33,\n'
+            '      "body": "Great article!"\n'
             "    }\n"
             "  ]\n"
             "}"
@@ -988,8 +1013,8 @@ class CommentViewSet(ViewSet):
             "GET /api/comments/33/\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"id\": 33,\n"
-            "  \"body\": \"Great article!\"\n"
+            '  "id": 33,\n'
+            '  "body": "Great article!"\n'
             "}"
         ),
         responses={
@@ -1066,12 +1091,12 @@ class CommentViewSet(ViewSet):
             "PATCH /api/comments/33/\n"
             "Authorization: Bearer <jwt-access-token>\n"
             "{\n"
-            "  \"body\": \"Updated text\"\n"
+            '  "body": "Updated text"\n'
             "}\n\n"
             "Response example (200):\n"
             "{\n"
-            "  \"id\": 33,\n"
-            "  \"body\": \"Updated text\"\n"
+            '  "id": 33,\n'
+            '  "body": "Updated text"\n'
             "}"
         ),
         request=CommentSerializer,
@@ -1287,7 +1312,12 @@ class StatsView(APIView):
             ),
         },
     )
-    def get(self, request: DRFRequest, *args: tuple[Any, ...], **kwargs: dict[str, Any]) -> DRFResponse:
+    def get(
+        self,
+        request: DRFRequest,
+        *args: tuple[Any, ...],
+        **kwargs: dict[str, Any],
+    ) -> DRFResponse:
         try:
             payload = async_to_sync(self._fetch_stats_snapshot)()
             return DRFResponse(data=payload, status=HTTP_200_OK)
