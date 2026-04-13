@@ -28,13 +28,14 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "django_extensions",
-    'drf_spectacular',
+    "drf_spectacular",
 ]
 
 PROJECT_APPS = [
     "apps.abstract",
     "apps.blog",
     "apps.users",
+    "apps.notifications",
 ]
 
 INSTALLED_APPS = DJANGO_AND_THIRD_PARTY_APPS + PROJECT_APPS
@@ -136,7 +137,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.CursorPagination",
     "PAGE_SIZE": 100,
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 """
@@ -144,26 +145,26 @@ Documentation Settings
 """
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Blog API',
-    'DESCRIPTION': 'Blog API system',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': True,
-    'TAGS': [
+    "TITLE": "Blog API",
+    "DESCRIPTION": "Blog API system",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": True,
+    "TAGS": [
         {
-            'name': 'Auth',
-            'description': 'Authentication, registration, profile, and user preference endpoints.',
+            "name": "Auth",
+            "description": "Authentication, registration, profile, and user preference endpoints.",
         },
         {
-            'name': 'Posts',
-            'description': 'Post CRUD and post-scoped operations.',
+            "name": "Posts",
+            "description": "Post CRUD and post-scoped operations.",
         },
         {
-            'name': 'Comments',
-            'description': 'Comment listing, retrieval, and moderation endpoints.',
+            "name": "Comments",
+            "description": "Comment listing, retrieval, and moderation endpoints.",
         },
         {
-            'name': 'Stats',
-            'description': 'List and feed-like endpoints that expose aggregate/paginated activity views.',
+            "name": "Stats",
+            "description": "List and feed-like endpoints that expose aggregate/paginated activity views.",
         },
     ],
 }
