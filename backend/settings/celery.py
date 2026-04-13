@@ -3,7 +3,8 @@ import os
 from celery import Celery
 from celery.schedules import crontab
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings.base")
+blog_env_id = os.getenv("BLOG_ENV_ID", "prod")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"settings.env.{blog_env_id}")
 
 app = Celery("settings")
 

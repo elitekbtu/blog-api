@@ -15,8 +15,8 @@ from apps.blog.models import Post
 
 logger = getLogger(__name__)
 
-AUTHENTICATION_ERROR_CODE = "4001"
-POST_SLUG_NOT_FOUND_ERROR_CODE = "4004"
+AUTHENTICATION_ERROR_CODE = 4001
+POST_SLUG_NOT_FOUND_ERROR_CODE = 4004
 
 
 class CommentConsumer(AsyncWebsocketConsumer):

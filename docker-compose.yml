@@ -1,11 +1,73 @@
 services:
   redis:
-    image: redis:latest
-    container_name: redis
+    image: redis:7-alpine
     ports:
       - "6379:6379"
+    env_file:
+      - ./backend/settings/.env
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: daphne -b 0.0.0.0 -p 8000 settings.asgi:application
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/settings/.env
+    environment:
+      BLOG_SKIP_SETUP: "false"
     volumes:
-      - redis_data:/data
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A settings worker -l info
+    env_file:
+      - ./backend/settings/.env
+    environment:
+      BLOG_SKIP_SETUP: "true"
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A settings beat -l info
+    env_file:
+      - ./backend/settings/.env
+    environment:
+      BLOG_SKIP_SETUP: "true"
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >-
+      sh -c 'celery -A settings flower
+      --basic-auth=$${BLOG_FLOWER_USER}:$${BLOG_FLOWER_PASSWORD}
+      --address=0.0.0.0 --port=5555'
+    ports:
+      - "5555:5555"
+    env_file:
+      - ./backend/settings/.env
+    environment:
+      BLOG_SKIP_SETUP: "true"
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - redis
 
 volumes:
-  redis_data:
+  sqlite_data:

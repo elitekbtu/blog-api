@@ -1,5 +1,6 @@
 # Project modules
 from settings.base import *  # noqa: F403
+from decouple import config
 
 
 DEBUG = True
@@ -11,10 +12,6 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": "db.sqlite3",
+        "NAME": config("BLOG_SQLITE_PATH", default="db.sqlite3", cast=str),
     },
 }
-
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
-REDIS_DB = 0

@@ -1,6 +1,8 @@
 # Project modules
 import os
 from datetime import timedelta
+from urllib.parse import urlparse
+
 from settings.conf import *  # noqa: F403
 from django.utils.translation import gettext_lazy as _
 
@@ -9,10 +11,18 @@ Path configurations
 """
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 ROOT_URLCONF = "settings.urls"
 WSGI_APPLICATION = "settings.wsgi.application"
 ASGI_APPLICATION = "settings.asgi.application"
 AUTH_USER_MODEL = "users.CustomUser"
+
+REDIS_URL = BLOG_REDIS_URL  # noqa: F405
+redis_parsed = urlparse(REDIS_URL)
+REDIS_HOST = redis_parsed.hostname or "localhost"
+REDIS_PORT = redis_parsed.port or 6379
+REDIS_DB = int((redis_parsed.path or "/0").lstrip("/") or 0)
 
 """
 Apps
@@ -27,6 +37,7 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "channels",
     "django_extensions",
     "drf_spectacular",
 ]
@@ -73,7 +84,7 @@ LOGGING = {
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "WARNING",
-            "filename": "logs/app.log",
+            "filename": os.path.join(LOG_DIR, "app.log"),
             "maxBytes": 5 * 1024 * 1024,  # 10 MB
             "backupCount": 3,
             "formatter": "verbose",
@@ -82,7 +93,7 @@ LOGGING = {
         "debug_only": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "DEBUG",
-            "filename": "logs/debug_requests.log",
+            "filename": os.path.join(LOG_DIR, "debug_requests.log"),
             "maxBytes": 5 * 1024 * 1024,  # 10 MB
             "backupCount": 3,
             "formatter": "verbose",
@@ -176,7 +187,7 @@ Caching
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://localhost:6379/1",
+        "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
@@ -189,7 +200,15 @@ CACHES = {
 Celery
 """
 
-CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_BROKER_URL = BLOG_CELERY_BROKER_URL  # noqa: F405
+CELERY_RESULT_BACKEND = BLOG_CELERY_BROKER_URL  # noqa: F405
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [REDIS_URL]},
+    }
+}
 """
 Middleware | Templates | Validators
 """
