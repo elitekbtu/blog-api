@@ -16,7 +16,7 @@ from django.contrib.auth import authenticate
 
 # Project modules
 from apps.users.models import CustomUser
-from utils.email import send_welcome_email
+from apps.users.tasks import send_welcome_email_task
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class RegistrationSerializer(ModelSerializer):
         validated_data.pop("password_confirm")
         user = CustomUser.objects.create_user(**validated_data)
         logger.info(f"User created successfully: user_id={user.id}, email={email}")
-        send_welcome_email(user)
+        send_welcome_email_task.delay(user.id)
         return user
 
     def get_tokens(self, obj: CustomUser) -> dict[str, str]:

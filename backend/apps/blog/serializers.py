@@ -12,12 +12,12 @@ from rest_framework.serializers import (
     SerializerMethodField,
     SlugField,
     PrimaryKeyRelatedField,
+    ValidationError,
 )
 
 # Project modules
 from apps.blog.models import Post, Category, Tag, Comment
 from apps.users.models import CustomUser
-from apps.blog.redis_client import publish_comment_event
 from utils.datetime_helper import format_user_datetime
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,7 @@ class PostListSerializer(ModelSerializer):
     tags: TagSerializer = TagSerializer(read_only=True, many=True)
 
     created_at: datetime = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
+    publish_at: datetime = DateTimeField(read_only=True, format="%H:%M %d-%m-%Y")
 
     class Meta:
         model = Post
@@ -103,6 +104,7 @@ class PostListSerializer(ModelSerializer):
             "category",
             "tags",
             "status",
+            "publish_at",
             "created_at",
         ]
 
@@ -113,6 +115,8 @@ class PostListSerializer(ModelSerializer):
         data = super().to_representation(instance)
         request = self.context.get("request")
         user = request.user if request else None
+        if instance.publish_at:
+            data["publish_at"] = format_user_datetime(instance.publish_at, user)
         if instance.created_at:
             data["created_at"] = format_user_datetime(instance.created_at, user)
         return data
@@ -135,6 +139,11 @@ class PostDetailSerializer(ModelSerializer):
         read_only=True,
         format="%H:%M %d-%m-%Y",
     )
+    publish_at: datetime = DateTimeField(
+        required=False,
+        allow_null=True,
+        format="%H:%M %d-%m-%Y",
+    )
 
     class Meta:
         model = Post
@@ -147,6 +156,7 @@ class PostDetailSerializer(ModelSerializer):
             "category",
             "tags",
             "status",
+            "publish_at",
             "created_at",
             "updated_at",
         ]
@@ -158,6 +168,8 @@ class PostDetailSerializer(ModelSerializer):
         data = super().to_representation(instance)
         request = self.context.get("request")
         user = request.user if request else None
+        if instance.publish_at:
+            data["publish_at"] = format_user_datetime(instance.publish_at, user)
         if instance.created_at:
             data["created_at"] = format_user_datetime(instance.created_at, user)
         if instance.updated_at:
@@ -182,6 +194,10 @@ class PostCreateUpdateSerializer(ModelSerializer):
         many=True,
         required=False,
     )
+    publish_at = DateTimeField(
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = Post
@@ -194,10 +210,19 @@ class PostCreateUpdateSerializer(ModelSerializer):
             "category",
             "tags",
             "status",
+            "publish_at",
         ]
 
     def validate(self, attrs):
         logger.debug(f"Validating post data: title={attrs.get('title', 'N/A')}")
+        status = attrs.get("status", getattr(self.instance, "status", None))
+        publish_at = attrs.get("publish_at", getattr(self.instance, "publish_at", None))
+
+        if status == Post.Status.SCHEDULED and not publish_at:
+            raise ValidationError(
+                {"publish_at": "This field is required when status is scheduled."}
+            )
+
         return super().validate(attrs)
 
     def create(self, validated_data):
@@ -253,7 +278,6 @@ class CommentSerializer(ModelSerializer):
         logger.info("Creating comment via serializer")
         comment = super().create(validated_data)
         logger.debug(f"Comment created in serializer: comment_id={comment.id}")
-        publish_comment_event(comment)
         return comment
 
     def update(self, instance, validated_data):

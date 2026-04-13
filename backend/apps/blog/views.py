@@ -8,8 +8,6 @@ from zoneinfo import ZoneInfo
 
 # Third-party modules
 import httpx
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 from rest_framework.viewsets import ViewSet
 from rest_framework.views import APIView
 from rest_framework import serializers
@@ -48,10 +46,12 @@ from apps.blog.serializers import (
 from apps.blog.permissions import IsAuthorOrReadOnly
 from apps.abstract.pagination import DefaultPagination
 from apps.abstract.ratelimit import ratelimit
+from apps.blog.tasks import invalidate_posts_cache_task
 from apps.blog.sse.publisher import (
     publish_post_published_event,
     build_post_published_payload,
 )
+from apps.notifications.tasks import process_new_comment
 
 from utils.cache_key import build_posts_cache_key
 
@@ -401,8 +401,8 @@ class PostViewSet(ViewSet):
             if post.status == Post.Status.PUBLISHED:
                 payload = build_post_published_payload(post)
                 asyncio.create_task(publish_post_published_event(payload))
-            cache.delete("published_posts_list")
-            logger.info("Invalidated published posts cache after post creation")
+            invalidate_posts_cache_task.delay()
+            logger.info("Dispatched posts cache invalidation task after post creation")
 
             logger.info(
                 f"Post created successfully: post_id={post.id}, "
@@ -616,8 +616,8 @@ class PostViewSet(ViewSet):
                 payload = build_post_published_payload(updated_post)
                 asyncio.create_task(publish_post_published_event(payload))
 
-            cache.delete("published_posts_list")
-            logger.info("Invalidated published posts cache after post update")
+            invalidate_posts_cache_task.delay()
+            logger.info("Dispatched posts cache invalidation task after post update")
 
             logger.info(
                 f"Post updated successfully: post_id={post.id}, "
@@ -708,6 +708,7 @@ class PostViewSet(ViewSet):
 
         post_id = post.id
         post.delete()
+        invalidate_posts_cache_task.delay()
         logger.info(
             f"Post deleted successfully: post_id={post_id}, "
             f"slug={slug}, user_id={request.user.id}"
@@ -726,8 +727,9 @@ class PostViewSet(ViewSet):
         summary="List comments for a post or add a new comment",
         description=(
             "GET returns comments for a post by slug (authentication optional). POST creates a new comment "
-            "for that post (authentication required). Side effects: on successful POST, publishes a Redis "
-            "event to channel `comments`. Language behavior: validation errors/messages may be localized. "
+            "for that post (authentication required). Side effects: on successful POST, dispatches a Celery "
+            "task that creates notifications and sends WebSocket events. Language behavior: validation "
+            "errors/messages may be localized. "
             "Timezone behavior: comment timestamps are formatted in the authenticated user's timezone or UTC "
             "for anonymous GET requests.\n\n"
             "GET request example:\n"
@@ -867,25 +869,7 @@ class PostViewSet(ViewSet):
             )
             if serializer.is_valid():
                 comment = serializer.save(author=request.user, post=post)
-
-                channel_layer = get_channel_layer()
-                payload = {
-                    "comment_id": comment.id,
-                    "author": {
-                        "id": comment.author.id,
-                        "email": comment.author.email,
-                    },
-                    "body": comment.body,
-                    "created_at": comment.created_at.isoformat(),
-                }
-                async_to_sync(channel_layer.group_send)(
-                    f"post_{post.slug}-messages",
-                    {
-                        "type": "comment_message",
-                        "comment": payload,
-                        "slug": post.slug,
-                    },
-                )
+                process_new_comment.delay(comment.id)
                 logger.info(
                     f"Comment created successfully: comment_id={comment.id}, "
                     f"post_id={post.id}, user_id={request.user.id}"

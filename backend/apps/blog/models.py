@@ -6,6 +6,7 @@ from django.db.models import (
     TextChoices,
     ForeignKey,
     ManyToManyField,
+    DateTimeField,
     CASCADE,
     SET_NULL,
 )
@@ -91,7 +92,8 @@ class Post(AbstractTimeStamptModel):
         - body (TextField): Post content.
         - category (ForeignKey): Optional post category.
         - tags (ManyToManyField): Tags assigned to the post.
-        - status (CharField): Publication status (draft/published).
+        - status (CharField): Publication status (draft/published/scheduled).
+        - publish_at (DateTimeField): Datetime for scheduled publishing.
 
     Reverse relations:
         - comments: All comments related to this post.
@@ -100,6 +102,7 @@ class Post(AbstractTimeStamptModel):
     class Status(TextChoices):
         DRAFT = "draft"
         PUBLISHED = "published"
+        SCHEDULED = "scheduled"
 
     author = ForeignKey(
         to=CustomUser,
@@ -129,6 +132,15 @@ class Post(AbstractTimeStamptModel):
         max_length=10,
         choices=Status.choices,
         default=Status.DRAFT,
+    )
+
+    publish_at = DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When status is 'scheduled', the beat task publishes the post "
+            "once publish_at <= now()."
+        ),
     )
 
     def __str__(self):
