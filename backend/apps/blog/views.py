@@ -48,6 +48,10 @@ from apps.blog.serializers import (
 from apps.blog.permissions import IsAuthorOrReadOnly
 from apps.abstract.pagination import DefaultPagination
 from apps.abstract.ratelimit import ratelimit
+from apps.blog.sse.publisher import (
+    publish_post_published_event,
+    build_post_published_payload,
+)
 
 from utils.cache_key import build_posts_cache_key
 
@@ -394,7 +398,9 @@ class PostViewSet(ViewSet):
 
         if serializer.is_valid():
             post = serializer.save(author=request.user)
-
+            if post.status == Post.Status.PUBLISHED:
+                payload = build_post_published_payload(post)
+                asyncio.create_task(publish_post_published_event(payload))
             cache.delete("published_posts_list")
             logger.info("Invalidated published posts cache after post creation")
 
@@ -605,7 +611,10 @@ class PostViewSet(ViewSet):
         )
 
         if serializer.is_valid():
-            serializer.save()
+            updated_post = serializer.save()
+            if updated_post.status == Post.Status.PUBLISHED:
+                payload = build_post_published_payload(updated_post)
+                asyncio.create_task(publish_post_published_event(payload))
 
             cache.delete("published_posts_list")
             logger.info("Invalidated published posts cache after post update")
