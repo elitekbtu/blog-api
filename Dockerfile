@@ -16,10 +16,13 @@ RUN pip install --upgrade pip \
 
 COPY . /app
 
+
 RUN chmod +x /app/scripts/entrypoint.sh \
     && useradd --create-home --uid 10001 appuser \
     && mkdir -p /app/data /app/backend/logs \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app \
+    && mkdir -p /app/backend/static \
+    && chown -R appuser:appuser /app/backend/static
 
 USER appuser
 

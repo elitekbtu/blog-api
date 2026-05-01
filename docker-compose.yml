@@ -11,14 +11,14 @@ services:
       context: .
       dockerfile: Dockerfile
     command: daphne -b 0.0.0.0 -p 8000 settings.asgi:application
-    ports:
-      - "8000:8000"
     env_file:
       - ./backend/settings/.env
     environment:
       BLOG_SKIP_SETUP: "false"
     volumes:
       - sqlite_data:/app/data
+      - static_data:/app/backend/static
+      - media_data:/app/backend/media
     depends_on:
       - redis
 
@@ -69,5 +69,19 @@ services:
     depends_on:
       - redis
 
+  nginx:
+    image: nginx:1.27-alpine 
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+    depends_on:
+      - web
+    
+
 volumes:
   sqlite_data:
+  static_data:
+  media_data:

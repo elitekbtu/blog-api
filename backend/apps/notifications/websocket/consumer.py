@@ -7,11 +7,7 @@ from typing import Optional, Any
 # Third-party modules
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
-from django.contrib.auth.models import AnonymousUser
 
-# Project modules
-from apps.users.models import CustomUser
-from apps.blog.models import Post
 
 logger = getLogger(__name__)
 
@@ -28,6 +24,10 @@ class CommentConsumer(AsyncWebsocketConsumer):
         self.group_name = None
         self.user_id = None
         self.post_slug = None
+
+        from django.contrib.auth.models import AnonymousUser
+        from apps.users.models import CustomUser
+        from apps.blog.models import Post
 
         user: CustomUser | AnonymousUser = self.scope.get("user", AnonymousUser())
         if user.is_authenticated:
